@@ -129,8 +129,9 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
 
     current_offer_type_key = inputs["tipo_oferta"]
     offer_details = OFFER_TYPES_DETAILS.get(current_offer_type_key, {"gender": "m"}) # Default to 'm' if not found
-    artigo_definido_tipo_oferta = "o" if offer_details["gender"] == "m" else "a"
-    contracao_de_tipo_oferta = "do" if offer_details["gender"] == "m" else "da"
+    artigo_definido_tipo_oferta = "os" if offer_details["gender"] == "m" else "as"
+    artigo_definido_tipo_oferta_cap = "Os" if offer_details["gender"] == "m" else "As"
+    contracao_de_tipo_oferta = "dos" if offer_details["gender"] == "m" else "das"
 
     endereco_completo_devedora = inputs["endereco_devedora"]
     if inputs["end_num_devedora"] and inputs["end_num_devedora"].strip():
@@ -183,6 +184,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
         "[[CNPJ_Emissora]]": inputs["cnpj_emissora"],
         "[[Copia_Nome]]": inputs.get("copia_nome", ""), "[[Copia_Email]]": inputs.get("copia_email", ""),
         "[[Artigo_Tipo_Oferta]]": artigo_definido_tipo_oferta,
+        "[[Artigo_Tipo_Oferta_Cap]]": artigo_definido_tipo_oferta_cap,
         "[[Contracao_De_Tipo_Oferta]]": contracao_de_tipo_oferta,
         "[[Lastro]]": inputs.get("lastro", ""),
         "[[Uso_Recursos_Debenture]]": inputs.get("uso_recursos_debenture", ""),

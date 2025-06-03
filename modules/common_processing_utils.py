@@ -67,8 +67,7 @@ def replace_placeholders_in_document(doc: Document, replacements: dict, bold_key
                         replace_placeholder_in_paragraph(paragraph_in_cell, placeholder, new_text_val, is_bold=should_be_bold)
     return doc
 
-def process_comissao_performance(doc: Document, comissao_existe: bool) -> Document: #
-    # ... (código completo da função process_comissao_performance de doc_utils.py)
+def process_comissao_performance(doc: Document, comissao_existe: bool) -> Document:
     if comissao_existe:
         return doc
 
@@ -205,7 +204,6 @@ def process_comissao_performance(doc: Document, comissao_existe: bool) -> Docume
 
 
 def adjust_anexo_layout(doc: Document) -> Document: #
-    # ... (código completo da função adjust_anexo_layout de doc_utils.py)
     anexo_pattern = re.compile(r"^\s*ANEXO\s+([IVXLCDM]+)(\s*-|\s\.|\s|$)", re.IGNORECASE)
     body_element = doc.element.body
     if not body_element:
@@ -249,7 +247,7 @@ def adjust_anexo_layout(doc: Document) -> Document: #
 
 def generate_docx_dcm(template_path_or_file, data_replacements, bold_placeholders, comissao_existe): #
     document = Document(template_path_or_file)
-    filled_document = replace_placeholders_in_document(document, data_replacements, bold_placeholders)
+    filled_document = replace_placeholders_in_document(document, data_replacements, bold_keys=bold_placeholders)
     filled_document = process_comissao_performance(filled_document, comissao_existe)
     filled_document = adjust_anexo_layout(filled_document)
 
@@ -258,11 +256,11 @@ def generate_docx_dcm(template_path_or_file, data_replacements, bold_placeholder
     doc_io.seek(0)
     return doc_io
 
-def generate_docx_coordenacao(template_path_or_file, data_replacements):
+def generate_docx_coordenacao(template_path_or_file, data_replacements, bold_placeholders):
     document = Document(template_path_or_file)
     # Para coordenação, não estamos usando bold_keys específicos inicialmente,
     # a formatação é aplicada diretamente pela replace_placeholder_in_paragraph (Calibri 11pt).
-    filled_document = replace_placeholders_in_document(document, data_replacements, bold_keys=set())
+    filled_document = replace_placeholders_in_document(document, data_replacements, bold_keys=bold_placeholders)
 
     doc_io = BytesIO()
     filled_document.save(doc_io)
@@ -354,10 +352,34 @@ def prepare_coordenacao_data(inputs: dict, offer_type: str) -> tuple[dict, list]
     mes = meses_pt[data_hoje.month - 1]
     ano = data_hoje.year # Adicionado para ter o ano
 
-    valor_total_ext = num2words(valor_total, lang='pt_BR', to='currency') #
+    valor_total_ext = num2words(valor_total, lang='pt_BR', to='currency')
+    valor_total_ext = valor_total_ext.lower()
     
     qtd_total = valor_total / 1000
     qtd_total_ext = num2words(qtd_total, lang='pt_BR')
+    qtd_total_ext = qtd_total_ext + ' cotas'
+
+    def genero_quantidade(frase):
+        palavras = frase.split()  # Divide a frase em uma lista de palavras
+        nova_frase_lista = []     # Lista pra guardar as palavras transformadas
+
+        for palavra in palavras:
+            if len(palavra) >= 2 and palavra.lower().endswith("os"):
+                # Se a palavra tiver pelo menos 2 letras e terminar em "os" (ignorando maiúsculas/minúsculas)
+                palavra_transformada = palavra[:-2] + "as"
+                nova_frase_lista.append(palavra_transformada)
+            elif palavra == 'um':
+                palavra_transformada = 'uma'
+                nova_frase_lista.append(palavra_transformada)
+            elif palavra == 'dois':
+                palavra_transformada = 'duas'
+                nova_frase_lista.append(palavra_transformada)
+            else:
+                nova_frase_lista.append(palavra)
+
+        return " ".join(nova_frase_lista)
+    
+    qtd_total_ext = genero_quantidade(qtd_total_ext)
 
     remuneracao_ext = num2words(remuneracao_valor, lang='pt_BR', to='currency') #
 
@@ -374,26 +396,26 @@ def prepare_coordenacao_data(inputs: dict, offer_type: str) -> tuple[dict, list]
 
 
     data_to_replace = {
-        "[[Dia]]": str(dia), #
-        "[[Mes]]": str(mes), #
-        "[[Ano]]": str(ano), # Adicionado
-        "[[Emissora]]": inputs.get("coord_emissora", ""), #
-        "[[CNPJ_Emissora]]": inputs.get("coord_cnpj_emissora", ""), #
-        "[[Copia]]": inputs.get("coord_copia_nome", ""), #
-        "[[Email_Copia]]": inputs.get("coord_copia_email", ""), #
-        "[[Valor_Total]]": valor_total_fmt, #
-        "[[Valor_Total_Ext]]": valor_total_ext.capitalize(), #
-        "[[Qtd_Total]]": qtd_total_fmt, # Se for usar
-        "[[Qtd_Total_Ext]]": qtd_total_ext, # Se for usar
-        "[[Remuneracao]]": remuneracao_fmt, #
-        "[[Remuneracao_Ext]]": remuneracao_ext.capitalize(), #
-        "[[Data_1ano]]": data_1ano_ext, #
-        "[[Data_20dias]]": data_20dias_ext, #
-        "[[Prazo]]": inputs.get("coord_prazo", ""), #
-        "[[Remuneracao_Titulo]]": inputs.get("coord_remuneracao_titulo", ""), #
-        "[[Amor_Princ]]": inputs.get("coord_amortizacao_principal", ""), #
-        "[[Pgto_Juros]]": inputs.get("coord_pagamento_juros", ""), #
-        "[[Garantias]]": inputs.get("coord_garantias", "") #
+        "[[Dia]]": str(dia),
+        "[[Mes]]": str(mes),
+        "[[Ano]]": str(ano),
+        "[[Emissora]]": inputs.get("coord_emissora", ""),
+        "[[CNPJ_Emissora]]": inputs.get("coord_cnpj_emissora", ""),
+        "[[Copia]]": inputs.get("coord_copia_nome", ""),
+        "[[Email_Copia]]": inputs.get("coord_copia_email", ""),
+        "[[Valor_Total]]": valor_total_fmt,
+        "[[Valor_Total_Ext]]": valor_total_ext,
+        "[[Qtd_Total]]": qtd_total_fmt,
+        "[[Qtd_Total_Ext]]": qtd_total_ext, 
+        "[[Remuneracao]]": remuneracao_fmt, 
+        "[[Remuneracao_Ext]]": remuneracao_ext, 
+        "[[Data_1ano]]": data_1ano_ext, 
+        "[[Data_20dias]]": data_20dias_ext, 
+        "[[Prazo]]": inputs.get("coord_prazo", ""), 
+        "[[Remuneracao_Titulo]]": inputs.get("coord_remuneracao_titulo", ""), 
+        "[[Amor_Princ]]": inputs.get("coord_amortizacao_principal", ""),
+        "[[Pgto_Juros]]": inputs.get("coord_pagamento_juros", ""),
+        "[[Garantias]]": inputs.get("coord_garantias", "")
     }
 
     if offer_type in ["CRI", "CRA"]:

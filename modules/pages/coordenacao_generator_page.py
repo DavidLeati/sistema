@@ -52,10 +52,14 @@ def render_coordenacao_page():
                                 st.error(f"⚠️ Erro de Entrada (Coordenação): {error_msg}")
                         else:
                             template_file_bytes = BytesIO(uploaded_template_coord.getvalue())
-                            
+                            placeholders_to_bold = {
+                                "[[Devedora]]", "[[Valor_Total]]", "[[Tipo_Oferta_Ext]]", "TERRA INVESTIMENTOS DISTRIBUIDORA DE TÍTULOS E VALORES MOBILIÁRIOS LTDA."
+                            }
                             generated_doc_io = common_processing_utils.generate_docx_coordenacao(
                                 template_file_bytes,
-                                data_to_replace
+                                data_to_replace,
+                                placeholders_to_bold,
+                                
                             )
                             
                             emissora_nome = current_inputs.get("coord_emissora", "Proposta")
