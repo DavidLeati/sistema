@@ -1,0 +1,5 @@
+streamlit
+num2words
+python-docx
+python-dateutil
+requests
