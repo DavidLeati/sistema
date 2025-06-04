@@ -3,3 +3,5 @@ num2words
 python-docx
 python-dateutil
 requests
+docx2pdf
+pywin32

@@ -11,60 +11,124 @@ from datetime import datetime, timedelta
 from num2words import num2words
 from dateutil.relativedelta import relativedelta
 
-# --- Funções de Manipulação de Documento DOCX (Baseadas em doc_utils.py do GitHub) ---
-def replace_placeholder_in_paragraph(paragraph: DocxParagraphObject, placeholder: str, new_text_val: str, is_bold: bool = False): #
-    str_new_text_val = str(new_text_val)
+# --- Funções de Manipulação de Documento DOCX ---
+def find_next_placeholder_details(text_to_search: str, placeholders_map: dict, search_start_index: int = 0):
+    """
+    Finds the earliest occurrence of any placeholder in the text from a given start index.
+
+    Args:
+        text_to_search: The text string to search within.
+        placeholders_map: A dictionary where keys are placeholders (e.g., "[[Placeholder]]").
+        search_start_index: The index from which to start searching.
+
+    Returns:
+        A tuple (found_placeholder, start_position) or (None, -1) if no placeholder is found.
+    """
+    first_placeholder_found = None
+    earliest_position = -1
+
+    for ph_key in placeholders_map.keys():
+        position = text_to_search.find(ph_key, search_start_index)
+        if position != -1:
+            if earliest_position == -1 or position < earliest_position:
+                earliest_position = position
+                first_placeholder_found = ph_key
+    
+    return first_placeholder_found, earliest_position
+
+def replace_placeholders_in_paragraph(paragraph: DocxParagraphObject, 
+                                                replacements: dict, 
+                                                bold_placeholders: set):
+    """
+    Replaces all specified placeholders within a single paragraph, applying bold formatting
+    as needed, in a single pass.
+
+    Args:
+        paragraph: The docx.text.paragraph.Paragraph object to process.
+        replacements: A dictionary mapping placeholders (keys) to their replacement text (values).
+        bold_placeholders: A set of placeholders that should be made bold upon replacement.
+    """
+    # Combine all run texts to get the full paragraph text
+    # This is necessary because a placeholder might span multiple existing runs or be within one.
     current_paragraph_text = "".join(run.text for run in paragraph.runs)
 
-    if placeholder not in current_paragraph_text:
+    # If no placeholders are present in the combined text, no need to proceed
+    if not any(ph in current_paragraph_text for ph in replacements.keys()):
         return
 
-    temp_paragraph_text_parts = []
-    last_idx = 0
-    while placeholder in current_paragraph_text[last_idx:]:
-        start_idx = current_paragraph_text.find(placeholder, last_idx)
-        if start_idx == -1:
-            break
-        
-        if start_idx > last_idx:
-            temp_paragraph_text_parts.append( (current_paragraph_text[last_idx:start_idx], False) )
-        
-        temp_paragraph_text_parts.append( (str_new_text_val, is_bold) )
-        last_idx = start_idx + len(placeholder)
+    text_segments = []  # List to store (text_fragment, is_bold_flag) tuples
+    current_search_idx = 0
 
-    if last_idx < len(current_paragraph_text):
-        temp_paragraph_text_parts.append( (current_paragraph_text[last_idx:], False) )
+    while current_search_idx < len(current_paragraph_text):
+        placeholder_key, placeholder_start_idx = find_next_placeholder_details(
+            current_paragraph_text, replacements, current_search_idx
+        )
 
-    for _ in range(len(paragraph.runs)):
-        if paragraph.runs:
-            p_element = paragraph._p
-            p_element.remove(paragraph.runs[0]._r)
+        if placeholder_key is None:
+            # No more placeholders found in the rest of the text
+            if current_search_idx < len(current_paragraph_text):
+                text_segments.append((current_paragraph_text[current_search_idx:], False))
+            break  # Exit while loop
 
-    for text_content, should_be_bold_segment in temp_paragraph_text_parts:
-        if not text_content:
+        # Add the text segment before the found placeholder (if any)
+        if placeholder_start_idx > current_search_idx:
+            text_segments.append((current_paragraph_text[current_search_idx:placeholder_start_idx], False))
+
+        # Add the replaced placeholder text
+        replacement_text = str(replacements.get(placeholder_key, placeholder_key)) # Default to placeholder if not in dict (should not happen if keys are from replacements)
+        should_be_bold = placeholder_key in bold_placeholders
+        text_segments.append((replacement_text, should_be_bold))
+
+        current_search_idx = placeholder_start_idx + len(placeholder_key)
+
+    # Clear all existing runs from the paragraph.
+    # Accessing internal _p and _r is common in python-docx for finer control.
+    # A while loop is safer for removing runs as the paragraph.runs list mutates.
+    while paragraph.runs:
+        p_element = paragraph._p  # The <w:p> XML element
+        r_element = paragraph.runs[0]._r  # The <w:r> XML element of the first run
+        p_element.remove(r_element)
+
+    # Add new runs to the paragraph based on the collected segments
+    for text_content, should_be_bold_segment in text_segments:
+        if not text_content:  # Avoid adding runs for empty strings
             continue
         run = paragraph.add_run(text_content)
+        # Apply consistent styling for new runs (as in your original code)
+        # If you need to preserve more complex original styling, this part would need to be more sophisticated.
         run.font.name = 'Calibri'
         run.font.size = Pt(11)
         run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
         run.font.bold = should_be_bold_segment
 
-def replace_placeholders_in_document(doc: Document, replacements: dict, bold_keys: set = None) -> Document: #
-    if bold_keys is None:
-        bold_keys = set()
+def replace_placeholders_in_document(doc: Document, 
+                                         replacements_map: dict, 
+                                         placeholders_to_make_bold: set = None) -> Document:
+    """
+    Replaces placeholders throughout the document (paragraphs and tables),
+    applying bold formatting to specified placeholders.
 
+    Args:
+        doc: The docx.Document object.
+        replacements_map: Dictionary of placeholders and their replacement values.
+        placeholders_to_make_bold: Set of placeholder keys that should be bolded.
+
+    Returns:
+        The modified docx.Document object.
+    """
+    if placeholders_to_make_bold is None:
+        placeholders_to_make_bold = set()
+
+    # Process paragraphs in the main body of the document
     for paragraph in doc.paragraphs:
-        for placeholder, new_text_val in replacements.items():
-            should_be_bold = placeholder in bold_keys
-            replace_placeholder_in_paragraph(paragraph, placeholder, new_text_val, is_bold=should_be_bold)
+        replace_placeholders_in_paragraph(paragraph, replacements_map, placeholders_to_make_bold)
     
+    # Process paragraphs within table cells
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph_in_cell in cell.paragraphs:
-                    for placeholder, new_text_val in replacements.items():
-                        should_be_bold = placeholder in bold_keys
-                        replace_placeholder_in_paragraph(paragraph_in_cell, placeholder, new_text_val, is_bold=should_be_bold)
+                    replace_placeholders_in_paragraph(paragraph_in_cell, replacements_map, placeholders_to_make_bold)
     return doc
 
 def process_comissao_performance(doc: Document, comissao_existe: bool) -> Document:
@@ -247,7 +311,7 @@ def adjust_anexo_layout(doc: Document) -> Document: #
 
 def generate_docx_dcm(template_path_or_file, data_replacements, bold_placeholders, comissao_existe): #
     document = Document(template_path_or_file)
-    filled_document = replace_placeholders_in_document(document, data_replacements, bold_keys=bold_placeholders)
+    filled_document = replace_placeholders_in_document(document, data_replacements, bold_placeholders)
     filled_document = process_comissao_performance(filled_document, comissao_existe)
     filled_document = adjust_anexo_layout(filled_document)
 
@@ -258,9 +322,8 @@ def generate_docx_dcm(template_path_or_file, data_replacements, bold_placeholder
 
 def generate_docx_coordenacao(template_path_or_file, data_replacements, bold_placeholders):
     document = Document(template_path_or_file)
-    # Para coordenação, não estamos usando bold_keys específicos inicialmente,
-    # a formatação é aplicada diretamente pela replace_placeholder_in_paragraph (Calibri 11pt).
-    filled_document = replace_placeholders_in_document(document, data_replacements, bold_keys=bold_placeholders)
+    filled_document = replace_placeholders_in_document(document, data_replacements, bold_placeholders)
+    filled_document = adjust_anexo_layout(filled_document)
 
     doc_io = BytesIO()
     filled_document.save(doc_io)
@@ -399,6 +462,7 @@ def prepare_coordenacao_data(inputs: dict, offer_type: str) -> tuple[dict, list]
         "[[Dia]]": str(dia),
         "[[Mes]]": str(mes),
         "[[Ano]]": str(ano),
+        "[[Terra]]": str("TERRA INVESTIMENTOS DISTRIBUIDORA DE TÍTULOS E VALORES MOBILIÁRIOS LTDA."),
         "[[Emissora]]": inputs.get("coord_emissora", ""),
         "[[CNPJ_Emissora]]": inputs.get("coord_cnpj_emissora", ""),
         "[[Copia]]": inputs.get("coord_copia_nome", ""),
@@ -415,7 +479,7 @@ def prepare_coordenacao_data(inputs: dict, offer_type: str) -> tuple[dict, list]
         "[[Remuneracao_Titulo]]": inputs.get("coord_remuneracao_titulo", ""), 
         "[[Amor_Princ]]": inputs.get("coord_amortizacao_principal", ""),
         "[[Pgto_Juros]]": inputs.get("coord_pagamento_juros", ""),
-        "[[Garantias]]": inputs.get("coord_garantias", "")
+        "[[Garantias]]": inputs.get("coord_garantias", ""),
     }
 
     if offer_type in ["CRI", "CRA"]:

@@ -19,10 +19,10 @@ OFFER_TYPES_DETAILS = {
         "gender": "f",
         "fields": ["remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias", "uso_recursos_debenture"]
     },
-    "FIDC": {
-        "extenso": "Fundo de Investimento em Direitos Creditórios",
-        "gender": "m",
-        "fields": ["cotas_fidc", "serie_cotas_fidc", "gestor_fidc", "administrador_fidc", "custodiante_fidc", "remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias"]
+    "Notas Comerciais": {
+        "extenso": "Notas Comerciais",
+        "gender": "f",
+        "fields": ["remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias", "covenants"]
     }
 }
 OFFER_TYPE_OPTIONS = list(OFFER_TYPES_DETAILS.keys())
@@ -161,6 +161,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
 
     data_to_replace = {
         "[[Dia]]": str(dia), "[[Mes]]": str(mes), "[[Ano]]": str(ano),
+        "[[Terra]]": str("TERRA INVESTIMENTOS DISTRIBUIDORA DE TÍTULOS E VALORES MOBILIÁRIOS LTDA."),
         "[[Devedora]]": inputs["devedora"], "[[CNPJ_Devedora]]": inputs["cnpj_devedora"],
         "[[Tipo_Oferta]]": inputs["tipo_oferta"],
         "[[Cidade_Devedora]]": inputs["cidade_devedora"],
@@ -170,7 +171,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
         "[[CEP_Devedora]]": inputs["cep_devedora"], # Já formatado na entrada da API ou manual
         "[[Tipo_Oferta_Ext]]": inputs["tipo_oferta_ext"],
         "[[Valor_Total]]": f"{valor_total:_.2f}".replace("_", "X").replace(".", ",").replace("X", "."),
-        "[[Valor_Total_Ext]]": valor_total_ext.capitalize(),
+        "[[Valor_Total_Ext]]": valor_total_ext,
         "[[Remuneracao]]": remuneracao_placeholder_val,
         "[[Remuneracao_Ext]]": remuneracao_ext_val,
         "[[Data_1ano]]": data_1ano_ext, "[[Data_20dias]]": data_20dias_ext,
@@ -181,6 +182,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
         "[[Amor_Princ]]": inputs["amortizacao_principal"],
         "[[Pgto_Juros]]": inputs["pagamento_juros"],
         "[[Garantias]]": inputs["garantias"],
+        "[[Covenants]]": inputs["covenants"],
         "[[CNPJ_Emissora]]": inputs["cnpj_emissora"],
         "[[Copia_Nome]]": inputs.get("copia_nome", ""), "[[Copia_Email]]": inputs.get("copia_email", ""),
         "[[Artigo_Tipo_Oferta]]": artigo_definido_tipo_oferta,
@@ -196,7 +198,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
     }
 
     placeholders_to_bold = {
-        "[[Devedora]]", "[[Emissora]]", "[[Valor_Total]]",
-        "[[Tipo_Oferta_Ext]]",
+        "[[Devedora]]", "[[Emissora]]",
+        "[[Tipo_Oferta_Ext]]", "[[Terra]]"
     }
     return data_to_replace, placeholders_to_bold, validation_info

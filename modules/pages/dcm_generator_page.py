@@ -1,6 +1,9 @@
 import streamlit as st
 from io import BytesIO
 import traceback
+import os
+from tempfile import NamedTemporaryFile
+from docx2pdf import convert
 
 # Importações dos módulos utilitários e de lógica de negócios do DCM
 from .. import api
@@ -8,7 +11,6 @@ from .. import dcm_core_logic
 from .. import common_processing_utils
 
 def render_dcm_page():
-    # --- Funções de Callback e Inicialização de Estado (Específicas desta página DCM) ---
     def update_offer_related_fields_dcm():
         selected_key = st.session_state.dcm_tipo_oferta_selector
         if selected_key in dcm_core_logic.OFFER_TYPES_DETAILS:
@@ -28,57 +30,63 @@ def render_dcm_page():
             "estado_devedora": "UF", "cep_devedora": "00000-000",
             "tipo_oferta": dcm_core_logic.OFFER_TYPE_OPTIONS[0],
             "tipo_oferta_ext": dcm_core_logic.OFFER_TYPES_DETAILS[dcm_core_logic.OFFER_TYPE_OPTIONS[0]]["extenso"],
-            "valor_total_str": "10000000,00",
-            "remuneracao_str": "0,50", # Para DCM, é percentual
-            "prazo": "XX (XXXX) anos",
-            "lastro": "Cédulas de Crédito Imobiliário (“CCI”)",
-            "destinacao": "Ex: Reembolso de custos e despesas...",
-            "remuneracao_titulo": "CDI + X,XX% a.a.",
-            "amortizacao_principal": "Ex: Ao final do prazo de vencimento",
-            "pagamento_juros": "Ex: Mensalmente, conforme Tabela Price",
-            "garantias": "1) Fiança dos acionistas...\n2) Alienação Fiduciária...",
+            "valor_total_str": "10000000,00", "remuneracao_str": "0,50", "prazo": "XX (XXXX) anos",
+            "lastro": "Cédulas de Crédito Imobiliário (“CCI”)", "destinacao": "Ex: Reembolso de custos e despesas...",
+            "remuneracao_titulo": "CDI + X,XX% a.a.", "amortizacao_principal": "Ex: Ao final do prazo de vencimento",
+            "pagamento_juros": "Ex: Mensalmente, conforme Tabela Price", "garantias": "1) Fiança dos acionistas...\n2) Alienação Fiduciária...",
             "uso_recursos_debenture": "Descrição do uso dos recursos captados pela debênture",
-            "cotas_fidc": "Ex: Cotas Seniores, Cotas Subordinadas Mezanino, Cotas Subordinadas Júnior",
-            "serie_cotas_fidc": "Ex: Única",
-            "gestor_fidc": "Nome do Gestor do FIDC",
-            "administrador_fidc": "Nome do Administrador do FIDC",
-            "custodiante_fidc": "Nome do Custodiante do FIDC",
-            "comissao_performance_existe": True,
-            "signatario_nome": "NOME DO DIRETOR DA SECURITIZADORA",
-            "signatario_email": "diretor@suasecuritizadora.com",
+            "cotas_fidc": "Ex: Cotas Seniores, Cotas Subordinadas Mezanino, Cotas Subordinadas Júnior", "serie_cotas_fidc": "Ex: Única",
+            "gestor_fidc": "Nome do Gestor do FIDC", "administrador_fidc": "Nome do Administrador do FIDC",
+            "custodiante_fidc": "Nome do Custodiante do FIDC", "comissao_performance_existe": True,
+            "signatario_nome": "NOME DO DIRETOR DA SECURITIZADORA", "signatario_email": "diretor@suasecuritizadora.com",
         }
 
     if "dcm_tipo_oferta_selector" not in st.session_state:
         st.session_state.dcm_tipo_oferta_selector = st.session_state.dcm_form_inputs["tipo_oferta"]
     elif st.session_state.dcm_tipo_oferta_selector != st.session_state.dcm_form_inputs["tipo_oferta"]:
-         st.session_state.dcm_tipo_oferta_selector = st.session_state.dcm_form_inputs["tipo_oferta"]
+        st.session_state.dcm_tipo_oferta_selector = st.session_state.dcm_form_inputs["tipo_oferta"]
 
-    # --- Layout da Página "Gerador de Propostas DCM" ---
-    with st.sidebar: # A sidebar continua aqui, mas específica para DCM
+    # --- MODIFICADO: Chave única para o estado do checkbox ---
+    checkbox_visibility_key = "dcm_mostrar_dados_inputs_key"
+
+    if checkbox_visibility_key not in st.session_state:
+        st.session_state[checkbox_visibility_key] = True # Mostrar por padrão
+
+    with st.sidebar:
         st.header("Gerador DCM")
-        st.subheader("1. Selecione o Modelo")
+        st.subheader("- Selecione o Modelo -")
         uploaded_template_dcm = st.file_uploader("Escolha o arquivo de modelo (.docx)", type="docx", label_visibility="collapsed", key="dcm_template_uploader")
 
-        st.subheader("2. Preencha os Dados")
-        with st.expander("Dados da Emissora e Signatário", expanded=False):
-            st.session_state.dcm_form_inputs["emissora"] = st.text_input("Emissora:", value=st.session_state.dcm_form_inputs["emissora"], key="dcm_emissora")
-            st.session_state.dcm_form_inputs["cnpj_emissora"] = st.text_input("CNPJ Emissora:", value=st.session_state.dcm_form_inputs["cnpj_emissora"], key="dcm_cnpj_emissora")
-            st.session_state.dcm_form_inputs["signatario_nome"] = st.text_input("Nome do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_nome"], key="dcm_signatario_nome")
-            st.session_state.dcm_form_inputs["signatario_email"] = st.text_input("E-mail do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_email"], key="dcm_signatario_email")
+        # --- MODIFICADO: Checkbox usa a chave única e o Streamlit gerencia o estado ---
+        st.checkbox(
+            "Mostrar/Esconder Dados da Proposta",
+            key=checkbox_visibility_key
+        )
 
-        with st.expander("Pessoas em Cópia (Opcional)", expanded=False):
-            st.session_state.dcm_form_inputs["copia_nome"] = st.text_input("Nome (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_nome"], key="dcm_copia_nome")
-            st.session_state.dcm_form_inputs["copia_email"] = st.text_input("E-mail (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_email"], key="dcm_copia_email")
-        
-        st.subheader("3. Gerar Proposta")
+        # --- MODIFICADO: Condição lê diretamente da chave única no session_state ---
+        if st.session_state[checkbox_visibility_key]:
+            st.subheader("- Preencha os Dados -")
+            with st.expander("Dados da Emissora e Signatário", expanded=False):
+                st.session_state.dcm_form_inputs["emissora"] = st.text_input("Emissora:", value=st.session_state.dcm_form_inputs["emissora"], key="dcm_emissora")
+                st.session_state.dcm_form_inputs["cnpj_emissora"] = st.text_input("CNPJ Emissora:", value=st.session_state.dcm_form_inputs["cnpj_emissora"], key="dcm_cnpj_emissora")
+                st.session_state.dcm_form_inputs["signatario_nome"] = st.text_input("Nome do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_nome"], key="dcm_signatario_nome")
+                st.session_state.dcm_form_inputs["signatario_email"] = st.text_input("E-mail do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_email"], key="dcm_signatario_email")
+
+            with st.expander("Pessoas em Cópia", expanded=False):
+                st.session_state.dcm_form_inputs["copia_nome"] = st.text_input("Nome (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_nome"], key="dcm_copia_nome")
+                st.session_state.dcm_form_inputs["copia_email"] = st.text_input("E-mail (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_email"], key="dcm_copia_email")
+        # else:
+            # st.caption("Os campos de preenchimento de dados estão ocultos.")
+
+        st.subheader("- Gerar Proposta -")
         if st.button("Gerar Documento", use_container_width=True, type="primary", key="dcm_gerar_proposta_btn"):
             if uploaded_template_dcm is None:
                 st.error("❌ Por favor, selecione um arquivo de modelo (.docx) para DCM.")
             else:
+                # ... (restante da lógica de geração do documento) ...
                 with st.spinner("Gerando proposta DCM... Por favor, aguarde."):
                     try:
                         inputs = st.session_state.dcm_form_inputs
-                        # Usar a função de preparo de dados do dcm_core_logic
                         data_to_replace, placeholders_to_bold, validation_info = dcm_core_logic.prepare_document_data(inputs)
 
                         if validation_info["errors"]:
@@ -88,51 +96,63 @@ def render_dcm_page():
                             if validation_info["warnings"]:
                                 for warning_msg in validation_info["warnings"]:
                                     st.warning(f"🔔 Aviso (DCM): {warning_msg}")
-                            
+
                             comissao_perf_existe_input = inputs.get("comissao_performance_existe", True)
                             template_file_bytes = BytesIO(uploaded_template_dcm.getvalue())
-                            
-                            # Usar a função de geração de DOCX específica para DCM
+
                             generated_doc_io = common_processing_utils.generate_docx_dcm(
-                                template_file_bytes, 
-                                data_to_replace, 
-                                placeholders_to_bold, 
-                                comissao_perf_existe_input
+                                template_file_bytes, data_to_replace, placeholders_to_bold, comissao_perf_existe_input
                             )
-                            
-                            output_filename = f"Proposta_DCM - {inputs['tipo_oferta'].replace(' ','_')} {inputs['devedora'].replace(' ','_')}.docx"
-                            
-                            st.success(f"✅ Proposta DCM '{output_filename}' gerada!")
+
+                            base_filename = f"Proposta_DCM - {inputs['tipo_oferta'].replace(' ','_')} {inputs['devedora'].replace(' ','_')}"
+                            output_filename_docx = f"{base_filename}.docx"
+
+                            st.success(f"✅ Proposta DCM '{output_filename_docx}' gerada!")
                             st.download_button(
-                                label="⬇️ Baixar Proposta DCM Gerada",
-                                data=generated_doc_io,
-                                file_name=output_filename,
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                use_container_width=True,
-                                key="dcm_download_btn"
+                                label="⬇️ Baixar Proposta DCM Gerada (.docx)", data=generated_doc_io,
+                                file_name=output_filename_docx, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True, key="dcm_download_btn_docx"
                             )
+
+                            st.info("⚙️ Tentando converter para PDF...")
+                            try:
+                                with NamedTemporaryFile(delete=False, suffix=".docx") as tmp_docx_file:
+                                    tmp_docx_file.write(generated_doc_io.getvalue())
+                                    tmp_docx_path = tmp_docx_file.name
+                                output_filename_pdf = f"{base_filename}.pdf"
+                                with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf_outfile:
+                                    tmp_pdf_out_path = tmp_pdf_outfile.name
+                                convert(tmp_docx_path, tmp_pdf_out_path)
+                                with open(tmp_pdf_out_path, "rb") as f_pdf: pdf_bytes = f_pdf.read()
+                                st.success(f"✅ Proposta DCM '{output_filename_pdf}' convertida para PDF!")
+                                st.download_button(
+                                    label="⬇️ Baixar Proposta DCM Gerada (.pdf)", data=BytesIO(pdf_bytes),
+                                    file_name=output_filename_pdf, mime="application/pdf",
+                                    use_container_width=True, key="dcm_download_btn_pdf"
+                                )
+                                os.unlink(tmp_docx_path)
+                                os.unlink(tmp_pdf_out_path)
+                            except Exception as pdf_e:
+                                st.error(f"❌ Falha ao converter para PDF: {pdf_e}")
+                                st.error(f"Detalhes do erro de PDF: {traceback.format_exc()}")
                     except Exception as e:
                         st.error(f"❌ Ocorreu um erro crítico ao gerar a proposta DCM: {e}")
                         st.error(f"Detalhes do erro: {traceback.format_exc()}")
 
+
     # Conteúdo principal da página "Gerador de Propostas DCM" (abas, etc.)
     dcm_tab_operacao, dcm_tab_devedora = st.tabs(["Detalhes da Operação", "Informações da Devedora"])
-
+    # ... (restante do código das abas)
     with dcm_tab_devedora:
         st.subheader("Informações da Empresa Devedora")
         st.session_state.dcm_form_inputs["cnpj_devedora"] = st.text_input(
-            "CNPJ Devedora:",
-            value=st.session_state.dcm_form_inputs["cnpj_devedora"],
-            key="dcm_cnpj_devedora_display" 
+            "CNPJ Devedora:", value=st.session_state.dcm_form_inputs["cnpj_devedora"], key="dcm_cnpj_devedora_display"
         )
-
         if st.button("Buscar Dados do CNPJ", key="dcm_buscar_cnpj_devedora_btn", use_container_width=True):
             cnpj_digitado = st.session_state.dcm_form_inputs["cnpj_devedora"]
             if cnpj_digitado:
-                with st.spinner(f"Buscando dados para o CNPJ {cnpj_digitado}..."):
-                    dados_api = api.consultar_cnpj(cnpj_digitado)
-                
-                if dados_api and "erro" not in dados_api: # Verifica se não houve erro na API
+                with st.spinner(f"Buscando dados para o CNPJ {cnpj_digitado}..."): dados_api = api.consultar_cnpj(cnpj_digitado)
+                if dados_api and "erro" not in dados_api:
                     st.success("Dados encontrados e atualizados!")
                     st.session_state.dcm_form_inputs["devedora"] = dados_api.get("company", {}).get("name", st.session_state.dcm_form_inputs["devedora"])
                     address_data = dados_api.get("address", {})
@@ -142,15 +162,12 @@ def render_dcm_page():
                     st.session_state.dcm_form_inputs["cidade_devedora"] = address_data.get("city", st.session_state.dcm_form_inputs["cidade_devedora"])
                     st.session_state.dcm_form_inputs["estado_devedora"] = address_data.get("state", st.session_state.dcm_form_inputs["estado_devedora"])
                     unformatted_cep = address_data.get("zip")
-                    if unformatted_cep:
-                        st.session_state.dcm_form_inputs["cep_devedora"] = dcm_core_logic.format_cep(str(unformatted_cep))
-                    st.rerun() # Para atualizar os campos na UI
+                    if unformatted_cep: st.session_state.dcm_form_inputs["cep_devedora"] = dcm_core_logic.format_cep(str(unformatted_cep))
+                    st.rerun()
                 else:
                     api_error_msg = dados_api.get("erro", "API indisponível ou CNPJ não encontrado.") if dados_api else "Falha na consulta à API."
                     st.warning(f"Nenhum dado encontrado para o CNPJ {cnpj_digitado} ou API indisponível. ({api_error_msg}). Por favor, preencha manualmente.")
-            else:
-                st.error("Por favor, digite um CNPJ para buscar.")
-
+            else: st.error("Por favor, digite um CNPJ para buscar.")
         dcm_col_dev1, dcm_col_dev2 = st.columns(2)
         with dcm_col_dev1:
             st.session_state.dcm_form_inputs["devedora"] = st.text_input("Devedora:", value=st.session_state.dcm_form_inputs["devedora"], key="dcm_devedora_input")
@@ -161,51 +178,36 @@ def render_dcm_page():
             st.session_state.dcm_form_inputs["cidade_devedora"] = st.text_input("Cidade Devedora:", value=st.session_state.dcm_form_inputs["cidade_devedora"], key="dcm_cidade_devedora_input")
             st.session_state.dcm_form_inputs["estado_devedora"] = st.text_input("Estado Devedora (UF):", value=st.session_state.dcm_form_inputs["estado_devedora"], max_chars=2, key="dcm_estado_devedora_input")
             st.session_state.dcm_form_inputs["cep_devedora"] = st.text_input("CEP Devedora:", value=st.session_state.dcm_form_inputs["cep_devedora"], key="dcm_cep_devedora_input")
-        
+
     with dcm_tab_operacao:
         st.subheader("Detalhes da Operação")
         selected_offer_key_dcm = st.selectbox(
-            "Tipo da Oferta:",
-            options=dcm_core_logic.OFFER_TYPE_OPTIONS, 
-            key="dcm_tipo_oferta_selector", 
-            on_change=update_offer_related_fields_dcm
+            "Tipo da Oferta:", options=dcm_core_logic.OFFER_TYPE_OPTIONS, key="dcm_tipo_oferta_selector", on_change=update_offer_related_fields_dcm
         )
         st.text_input("Tipo da Oferta (Extenso):", value=st.session_state.dcm_form_inputs["tipo_oferta_ext"], key="dcm_tipo_oferta_ext_display", disabled=True)
-
         dcm_op_col1, dcm_op_col2 = st.columns(2)
         with dcm_op_col1:
             st.session_state.dcm_form_inputs["valor_total_str"] = st.text_input("Valor Total da Operação:", value=st.session_state.dcm_form_inputs["valor_total_str"], key="dcm_valor_total_str")
             st.session_state.dcm_form_inputs["prazo"] = st.text_input("Prazo da Operação:", value=st.session_state.dcm_form_inputs["prazo"], key="dcm_prazo")
         with dcm_op_col2:
             st.session_state.dcm_form_inputs["remuneracao_str"] = st.text_input(
-                "Remuneração da Estruturação (%):", #
-                value=st.session_state.dcm_form_inputs["remuneracao_str"],
-                key="dcm_remuneracao_str"
+                "Remuneração da Estruturação (%):", value=st.session_state.dcm_form_inputs["remuneracao_str"], key="dcm_remuneracao_str"
             )
-
         performance_options_map_dcm = {"Sim": True, "Não": False}
         performance_labels_dcm = list(performance_options_map_dcm.keys())
         default_index_performance_dcm = 0 if st.session_state.dcm_form_inputs.get("comissao_performance_existe", True) else 1
-
         selected_performance_label_dcm = st.selectbox(
             "Haverá Comissão de Performance (impacta item 6.2 da proposta DCM)?",
-            options=performance_labels_dcm,
-            index=default_index_performance_dcm,
-            key="dcm_comissao_performance_selector" 
+            options=performance_labels_dcm, index=default_index_performance_dcm, key="dcm_comissao_performance_selector"
         )
         st.session_state.dcm_form_inputs["comissao_performance_existe"] = performance_options_map_dcm[selected_performance_label_dcm]
-
         st.markdown("---")
         st.write(f"**Detalhes Específicos para {st.session_state.dcm_form_inputs['tipo_oferta']} (DCM):**")
-        
         current_selected_offer_for_fields_dcm = st.session_state.dcm_form_inputs["tipo_oferta"]
         relevant_fields_for_offer_dcm = dcm_core_logic.OFFER_TYPES_DETAILS.get(current_selected_offer_for_fields_dcm, {}).get("fields", [])
-        
         for field_key in relevant_fields_for_offer_dcm:
-            default_value = st.session_state.dcm_form_inputs.get(field_key, "") 
-            label = field_key.replace("_", " ").capitalize() + " (DCM):"
-            
-            # Adaptação dos labels conforme o app.py original do GitHub
+            default_value = st.session_state.dcm_form_inputs.get(field_key, "")
+            label = field_key.replace("_", " ").capitalize() + ":"
             if field_key == "lastro": label = "Lastro da Operação:"
             elif field_key == "remuneracao_titulo": label = "Remuneração do Título:"
             elif field_key == "amortizacao_principal": label = "Amortização do Principal:"
@@ -218,6 +220,10 @@ def render_dcm_page():
                 label = "Garantias da Operação (uma por linha):"
                 st.session_state.dcm_form_inputs[field_key] = st.text_area(label, value=default_value, height=100, key=f"dcm_input_{field_key}")
                 continue
+            elif field_key == "covenants":
+                label = "Covenants da Operação (uma por linha):"
+                st.session_state.dcm_form_inputs[field_key] = st.text_area(label, value=default_value, height=100, key=f"dcm_input_{field_key}")
+                continue
             elif field_key == "cotas_fidc": label = "Estrutura das Cotas do FIDC:"
             elif field_key == "serie_cotas_fidc": label = "Série das Cotas:"
             elif field_key == "gestor_fidc": label = "Gestor do FIDC:"
@@ -227,5 +233,4 @@ def render_dcm_page():
                 label = "Uso Específico dos Recursos (Debênture):"
                 st.session_state.dcm_form_inputs[field_key] = st.text_area(label, value=default_value, height=100, key=f"dcm_input_{field_key}")
                 continue
-            
             st.session_state.dcm_form_inputs[field_key] = st.text_input(label, value=default_value, key=f"dcm_input_{field_key}")

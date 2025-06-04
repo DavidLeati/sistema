@@ -1,7 +1,9 @@
 import streamlit as st
 from io import BytesIO
 import traceback
-import os # Necessário para os nomes de arquivo
+import os
+from tempfile import NamedTemporaryFile
+from docx2pdf import convert
 
 # Importações dos módulos utilitários
 from .. import common_processing_utils # Usando import relativo
@@ -13,14 +15,14 @@ def render_coordenacao_page():
         # Inicializa com os valores padrão do primeiro tipo de oferta (CRI)
         for label, key, default in common_processing_utils.COORD_FIELD_CONFIGS.get("CRI", []):
             st.session_state.coord_form_inputs[key] = default
-    
+
     if 'coord_offer_type' not in st.session_state:
         st.session_state.coord_offer_type = "CRI" # Tipo de oferta padrão
 
     # --- Barra Lateral para Coordenação ---
     with st.sidebar:
         st.header("Gerador Coordenação")
-        st.subheader("1. Selecione o Modelo")
+        st.subheader("- Selecione o Modelo -")
         uploaded_template_coord = st.file_uploader(
             "Escolha o arquivo de modelo (.docx)",
             type="docx",
@@ -28,7 +30,7 @@ def render_coordenacao_page():
             key="coord_template_uploader_sidebar" # Chave diferente da principal se houver outra
         )
 
-        st.subheader("2. Gerar Proposta")
+        st.subheader("- Gerar Proposta -")
         if st.button("Gerar Documento", use_container_width=True, type="primary", key="coord_gerar_proposta_btn_sidebar"):
             if uploaded_template_coord is None: # Verifica o uploader da sidebar
                 st.error("❌ Por favor, selecione um arquivo de modelo (.docx) na barra lateral.")
@@ -53,37 +55,73 @@ def render_coordenacao_page():
                         else:
                             template_file_bytes = BytesIO(uploaded_template_coord.getvalue())
                             placeholders_to_bold = {
-                                "[[Devedora]]", "[[Valor_Total]]", "[[Tipo_Oferta_Ext]]", "TERRA INVESTIMENTOS DISTRIBUIDORA DE TÍTULOS E VALORES MOBILIÁRIOS LTDA."
+                                "[[Devedora]]", "[[Valor_Total]]", "[[Tipo_Oferta_Ext]]", "[[Terra]]"
                             }
                             generated_doc_io = common_processing_utils.generate_docx_coordenacao(
                                 template_file_bytes,
                                 data_to_replace,
                                 placeholders_to_bold,
-                                
                             )
-                            
+
                             emissora_nome = current_inputs.get("coord_emissora", "Proposta")
-                            output_filename = f"Proposta_Coord_{st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}.docx"
-                            
-                            st.success(f"✅ Proposta de Coordenação '{output_filename}' gerada!")
+                            base_filename = f"Proposta_Coord_{st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}"
+                            output_filename_docx = f"{base_filename}.docx"
+
+                            st.success(f"✅ Proposta de Coordenação '{output_filename_docx}' gerada!")
                             st.download_button(
-                                label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type})",
+                                label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type}) (.docx)",
                                 data=generated_doc_io,
-                                file_name=output_filename,
+                                file_name=output_filename_docx,
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 use_container_width=True,
-                                key="coord_download_btn_sidebar"
+                                key="coord_download_btn_sidebar_docx" # Chave alterada
                             )
+
+                            # --- INÍCIO DA SEÇÃO DE CONVERSÃO PARA PDF ---
+                            st.info("⚙️ Tentando converter para PDF...")
+                            try:
+                                with NamedTemporaryFile(delete=False, suffix=".docx") as tmp_docx_file:
+                                    tmp_docx_file.write(generated_doc_io.getvalue())
+                                    tmp_docx_path = tmp_docx_file.name
+
+                                output_filename_pdf = f"{base_filename}.pdf"
+
+                                with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf_outfile:
+                                    tmp_pdf_out_path = tmp_pdf_outfile.name
+
+                                convert(tmp_docx_path, tmp_pdf_out_path)
+
+                                with open(tmp_pdf_out_path, "rb") as f_pdf:
+                                    pdf_bytes = f_pdf.read()
+
+                                st.success(f"✅ Proposta de Coordenação '{output_filename_pdf}' convertida para PDF!")
+                                st.download_button(
+                                    label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type}) (.pdf)",
+                                    data=BytesIO(pdf_bytes),
+                                    file_name=output_filename_pdf,
+                                    mime="application/pdf",
+                                    use_container_width=True,
+                                    key="coord_download_btn_sidebar_pdf"
+                                )
+                                os.unlink(tmp_docx_path)
+                                os.unlink(tmp_pdf_out_path)
+
+                            except Exception as pdf_e:
+                                st.error(f"❌ Falha ao converter para PDF: {pdf_e}")
+                                st.error(f"Detalhes do erro de PDF: {traceback.format_exc()}")
+                         
+                            # --- FIM DA SEÇÃO DE CONVERSÃO PARA PDF ---
+
                     except Exception as e:
                         st.error(f"❌ Ocorreu um erro crítico ao gerar a proposta de Coordenação: {e}")
                         st.error(f"Detalhes do erro: {traceback.format_exc()}")
-    
+
     # --- Conteúdo Principal da Página "Gerador de Propostas de Coordenação" ---
     st.subheader("Gerador de Propostas de Coordenação") # Título no corpo principal
-    
+
     # Seleção do Tipo de Oferta (Coordenação)
     coord_offer_options = list(common_processing_utils.COORD_FIELD_CONFIGS.keys())
-    
+
     def on_coord_offer_type_change():
         new_offer_type = st.session_state.coord_offer_type_selector_main
         st.session_state.coord_offer_type = new_offer_type
@@ -106,41 +144,32 @@ def render_coordenacao_page():
         # Considerar st.rerun() se os defaults não atualizarem visualmente de imediato.
 
     st.markdown("---")
-    
-    # Removido o file_uploader do corpo principal, pois agora está na sidebar.
-    # Se quiser manter a opção de uploader no corpo principal também, pode adicionar aqui
-    # com uma chave diferente, mas a lógica do botão "Gerar" na sidebar já usa
-    # o uploader da sidebar.
 
     st.subheader(f"Dados para Proposta de Coordenação: {st.session_state.coord_offer_type}")
 
     current_fields_config_main = common_processing_utils.COORD_FIELD_CONFIGS.get(st.session_state.coord_offer_type, [])
-    
+
     col1, col2 = st.columns(2)
 
     for i, (label, key, default_value) in enumerate(current_fields_config_main):
         target_col = col1 if i % 2 == 0 else col2
         with target_col:
-            # Usar uma chave única para cada widget, incluindo o tipo de oferta para garantir
-            # que os valores sejam mantidos corretamente ao trocar de tipo.
             widget_key = f"{key}_{st.session_state.coord_offer_type}_main"
-            
-            # Inicializar o valor no session_state se ainda não existir para esta chave específica
+
             if widget_key not in st.session_state.coord_form_inputs:
                 st.session_state.coord_form_inputs[widget_key] = st.session_state.coord_form_inputs.get(key, default_value)
 
-
             if key == "coord_garantias" or key == "coord_destinacao":
-                st.session_state.coord_form_inputs[key] = st.text_area( # Atualiza a chave genérica também
+                st.session_state.coord_form_inputs[key] = st.text_area( 
                     label,
-                    value=st.session_state.coord_form_inputs[widget_key], # Lê da chave específica
+                    value=st.session_state.coord_form_inputs[widget_key], 
                     key=widget_key
                 )
             else:
-                st.session_state.coord_form_inputs[key] = st.text_input( # Atualiza a chave genérica também
+                st.session_state.coord_form_inputs[key] = st.text_input( 
                     label,
-                    value=st.session_state.coord_form_inputs[widget_key], # Lê da chave específica
+                    value=st.session_state.coord_form_inputs[widget_key], 
                     key=widget_key
                 )
-    
+
     st.markdown("---")

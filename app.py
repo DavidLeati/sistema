@@ -41,8 +41,6 @@ cols_nav = st.columns(len(PAGES))
 for i, page_name in enumerate(PAGES):
     if cols_nav[i].button(page_name, key=f"nav_btn_{page_name}"):
         st.session_state.current_page = page_name
-        # if page_name != "Gerador de Propostas": # Não é mais necessário resetar aqui
-        #     st.session_state.generator_type = "DCM"
         st.rerun() # Adicionar st.rerun() aqui pode ajudar na navegação principal
 
 st.markdown("---")
