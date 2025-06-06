@@ -7,6 +7,7 @@ from external_apis import cnpj_api
 from core import dcm_logic
 from document_processing import document_generator
 from shared_utils import formatting_utils
+from config import configs
 
 def render_dcm_page():
     # --- Inicialização do Session State para os artefatos gerados ---
@@ -21,9 +22,9 @@ def render_dcm_page():
 
     def update_offer_related_fields_dcm(): #
         selected_key = st.session_state.dcm_tipo_oferta_selector #
-        if selected_key in dcm_logic.OFFER_TYPES_DETAILS: #
+        if selected_key in configs.DCM_OFFER_TYPES_DETAILS: #
             st.session_state.dcm_form_inputs["tipo_oferta"] = selected_key #
-            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = dcm_logic.OFFER_TYPES_DETAILS[selected_key]["extenso"] #
+            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = configs.DCM_OFFER_TYPES_DETAILS[selected_key]["extenso"] #
         else:
             st.session_state.dcm_form_inputs["tipo_oferta"] = selected_key #
             st.session_state.dcm_form_inputs["tipo_oferta_ext"] = "Não especificado" #
@@ -36,8 +37,8 @@ def render_dcm_page():
             "endereco_devedora": "Rua Exemplo Devedora", "end_num_devedora": "123", #
             "bairro_devedora": "Bairro Exemplo", "cidade_devedora": "Cidade Exemplo", #
             "estado_devedora": "UF", "cep_devedora": "00000-000", #
-            "tipo_oferta": dcm_logic.OFFER_TYPE_OPTIONS[0], #
-            "tipo_oferta_ext": dcm_logic.OFFER_TYPES_DETAILS[dcm_logic.OFFER_TYPE_OPTIONS[0]]["extenso"], #
+            "tipo_oferta": list(configs.DCM_OFFER_TYPES_DETAILS.keys())[0], #
+            "tipo_oferta_ext": configs.DCM_OFFER_TYPES_DETAILS[list(configs.DCM_OFFER_TYPES_DETAILS.keys())[0]]["extenso"], #
             "valor_total_str": "10000000,00", "remuneracao_str": "0,50", "prazo": "XX (XXXX) anos", #
             "lastro": "Cédulas de Crédito Imobiliário (“CCI”)", "destinacao": "Ex: Reembolso de custos e despesas...", #
             "remuneracao_titulo": "CDI + X,XX% a.a.", "amortizacao_principal": "Ex: Ao final do prazo de vencimento", #
@@ -190,7 +191,7 @@ def render_dcm_page():
     with dcm_tab_operacao: #
         st.subheader("Detalhes da Operação") #
         selected_offer_key_dcm = st.selectbox( #
-            "Tipo da Oferta:", options=dcm_logic.OFFER_TYPE_OPTIONS, key="dcm_tipo_oferta_selector", on_change=update_offer_related_fields_dcm #
+            "Tipo da Oferta:", options=configs.DCM_OFFER_TYPES_DETAILS, key="dcm_tipo_oferta_selector", on_change=update_offer_related_fields_dcm #
         )
         st.text_input("Tipo da Oferta (Extenso):", value=st.session_state.dcm_form_inputs["tipo_oferta_ext"], key="dcm_tipo_oferta_ext_display", disabled=True) #
         dcm_op_col1, dcm_op_col2 = st.columns(2) #
@@ -212,7 +213,7 @@ def render_dcm_page():
         st.markdown("---") #
         st.write(f"**Detalhes Específicos para {st.session_state.dcm_form_inputs['tipo_oferta']} (DCM):**") #
         current_selected_offer_for_fields_dcm = st.session_state.dcm_form_inputs["tipo_oferta"] #
-        relevant_fields_for_offer_dcm = dcm_logic.OFFER_TYPES_DETAILS.get(current_selected_offer_for_fields_dcm, {}).get("fields", []) #
+        relevant_fields_for_offer_dcm = configs.DCM_OFFER_TYPES_DETAILS.get(current_selected_offer_for_fields_dcm, {}).get("fields", []) #
         for field_key in relevant_fields_for_offer_dcm: #
             default_value = st.session_state.dcm_form_inputs.get(field_key, "") #
             label = field_key.replace("_", " ").capitalize() + ":" #

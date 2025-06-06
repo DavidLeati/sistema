@@ -1,46 +1,19 @@
 # proposal_system/core/dcm_logic.py
-from datetime import datetime, timedelta #
-from dateutil.relativedelta import relativedelta #
-from shared_utils.text_utils import valor_por_extenso_reais, numero_por_extenso #
-from shared_utils.formatting_utils import format_cep #
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+from shared_utils.text_utils import valor_por_extenso_reais, numero_por_extenso
+from shared_utils.formatting_utils import format_cep
+from config import configs
 
-# --- Offer Types Configuration ---
-OFFER_TYPES_DETAILS = { #
-    "CRI": { #
-        "extenso": "Certificados de Recebíveis Imobiliários", #
-        "gender": "m", #
-        "fields": ["lastro", "remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias"] #
-    },
-    "CRA": { #
-        "extenso": "Certificados de Recebíveis do Agronegócio", #
-        "gender": "m", #
-        "fields": ["lastro", "remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias"] #
-    },
-    "Debênture": { #
-        "extenso": "Debêntures", #
-        "gender": "f", #
-        "fields": ["remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias", "uso_recursos_debenture"] #
-    },
-    "Notas Comerciais": { #
-        "extenso": "Notas Comerciais", #
-        "gender": "f", #
-        "fields": ["remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias", "covenants"] #
-    }
-}
-OFFER_TYPE_OPTIONS = list(OFFER_TYPES_DETAILS.keys()) #
-
-# A função format_cep foi movida para shared_utils.formatting_utils
-# e importada de lá.
-
-def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]: #
-    validation_info = {"errors": [], "warnings": []} #
+def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
+    validation_info = {"errors": [], "warnings": []}
     
-    valor_total = 0.0 #
-    remuneracao_percent_float = 0.0 #
+    valor_total = 0.0
+    remuneracao_percent_float = 0.0
 
-    valor_total_input_str = inputs["valor_total_str"] #
-    if not valor_total_input_str.strip(): #
-        validation_info["errors"].append("'Valor Total da Operação' não pode estar vazio.") #
+    valor_total_input_str = inputs["valor_total_str"]
+    if not valor_total_input_str.strip():
+        validation_info["errors"].append("'Valor Total da Operação' não pode estar vazio.")
     else:
         try:
             valor_total = float(valor_total_input_str.replace(".", "").replace(",", ".")) #
@@ -61,9 +34,7 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]: #
 
     data_hoje = datetime.now() #
     dia = data_hoje.day #
-    meses_pt = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", #
-                "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"] #
-    mes = meses_pt[data_hoje.month - 1] #
+    mes = configs.MESES_PT[data_hoje.month - 1] #
     ano = data_hoje.year #
     
     # Usando o utilitário de shared_utils
@@ -112,12 +83,12 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]: #
     remuneracao_ext_val = remuneracao_ext_val.capitalize() #
 
     data_1ano_obj = data_hoje + relativedelta(years=1) #
-    data_1ano_ext = f'{data_1ano_obj.day} de {meses_pt[data_1ano_obj.month - 1]} de {data_1ano_obj.year}' #
+    data_1ano_ext = f'{data_1ano_obj.day} de {configs.MESES_PT[data_1ano_obj.month - 1]} de {data_1ano_obj.year}' #
     data_20dias_obj = data_hoje + timedelta(days=20) #
-    data_20dias_ext = f'{data_20dias_obj.day} de {meses_pt[data_20dias_obj.month - 1]} de {data_20dias_obj.year}' #
+    data_20dias_ext = f'{data_20dias_obj.day} de {configs.MESES_PT[data_20dias_obj.month - 1]} de {data_20dias_obj.year}' #
 
     current_offer_type_key = inputs["tipo_oferta"] #
-    offer_details = OFFER_TYPES_DETAILS.get(current_offer_type_key, {"gender": "m"}) # Default to 'm' if not found #
+    offer_details = configs.DCM_OFFER_TYPES_DETAILS.get(current_offer_type_key, {"gender": "m"}) # Default to 'm' if not found #
     artigo_definido_tipo_oferta = "os" if offer_details["gender"] == "m" else "as" #
     artigo_definido_tipo_oferta_cap = "Os" if offer_details["gender"] == "m" else "As" #
     contracao_de_tipo_oferta = "dos" if offer_details["gender"] == "m" else "das" #
@@ -126,29 +97,13 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]: #
     if inputs["end_num_devedora"] and inputs["end_num_devedora"].strip(): #
         endereco_completo_devedora += f", nº {inputs['end_num_devedora'].strip()}" #
     
-    required_fields_check = { #
-        "devedora": "Nome da Devedora", #
-        "cnpj_devedora": "CNPJ da Devedora", #
-        "cidade_devedora": "Cidade da Devedora", #
-        "estado_devedora": "Estado da Devedora", #
-        "prazo": "Prazo da Operação", #
-        "destinacao": "Destinação dos Recursos", #
-        "remuneracao_titulo": "Remuneração do Título", #
-        "amortizacao_principal": "Amortização do Principal", #
-        "pagamento_juros": "Pagamento de Juros", #
-        "garantias": "Garantias da Operação", #
-        "signatario_nome": "Nome do Signatário", #
-        "signatario_email": "E-mail do Signatário", #
-        "emissora": "Nome da Emissora", #
-        "cnpj_emissora": "CNPJ da Emissora", #
-    }
-    for field, label in required_fields_check.items(): #
-        if not inputs.get(field,"").strip(): #
+    for field, label in configs.DCM_REQUIRED_FIELDS_CHECK.items():
+        if not inputs.get(field,"").strip():
             validation_info["warnings"].append(f"Campo '{label}' está vazio ou não preenchido.") #
 
     data_to_replace = { #
         "[[Dia]]": str(dia), "[[Mes]]": str(mes), "[[Ano]]": str(ano), #
-        "[[Terra]]": str("TERRA INVESTIMENTOS DISTRIBUIDORA DE TÍTULOS E VALORES MOBILIÁRIOS LTDA."), #
+        "[[Terra]]": configs.TERRA_NOME_COMPLETO, #
         "[[Devedora]]": inputs["devedora"], "[[CNPJ_Devedora]]": inputs["cnpj_devedora"], #
         "[[Re]]": str("Proposta para Coordenação, Estruturação e Distribuição de" + " " + inputs["tipo_oferta"]),
         "[[Tipo_Oferta]]": inputs["tipo_oferta"], #
@@ -180,8 +135,4 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]: #
         "[[Uso_Recursos_Debenture]]": inputs.get("uso_recursos_debenture", ""),
     }
 
-    placeholders_to_bold = { #
-        "[[Devedora]]", "[[Emissora]]", "[[Re]]",
-        "[[Tipo_Oferta_Ext]]", "[[Terra]]" 
-    }
-    return data_to_replace, placeholders_to_bold, validation_info #
+    return data_to_replace, configs.DCM_PLACEHOLDERS_TO_BOLD, validation_info #

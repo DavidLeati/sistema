@@ -2,19 +2,27 @@
 import streamlit as st
 from io import BytesIO
 import traceback #
-# Removido os, NamedTemporaryFile, convert pois agora estão em pdf_converter.py
 
 # Importações dos módulos refatorados
 from core import coordenacao_logic # Alterado de common_processing_utils
 from document_processing import document_generator
+from config import configs
 
-def render_coordenacao_page(): #
-    if 'coord_form_inputs' not in st.session_state: #
-        st.session_state.coord_form_inputs = {} #
-        # Inicializa com os valores padrão do primeiro tipo de oferta (CRI)
-        # Usando coordenacao_logic.COORD_FIELD_CONFIGS
-        for label, key, default in coordenacao_logic.COORD_FIELD_CONFIGS.get("CRI", []): #
-            st.session_state.coord_form_inputs[key] = default #
+def render_coordenacao_page():
+    # --- Inicialização do Session State para os artefatos gerados ---
+    if "coord_process_complete" not in st.session_state:
+        st.session_state.coord_process_complete = False
+    if "coord_generated_doc_io" not in st.session_state:
+        st.session_state.coord_generated_doc_io = None
+    if "coord_output_filename_docx" not in st.session_state:
+        st.session_state.coord_output_filename_docx = None
+    if "coord_error_message" not in st.session_state:
+        st.session_state.coord_error_message = None
+    if 'coord_form_inputs' not in st.session_state: 
+        st.session_state.coord_form_inputs = {} 
+    
+        for label, key, default in configs.COORD_FIELD_CONFIGS.get("CRI", []): 
+            st.session_state.coord_form_inputs[key] = default 
 
     if 'coord_offer_type' not in st.session_state: #
         st.session_state.coord_offer_type = "CRI" #
@@ -29,58 +37,69 @@ def render_coordenacao_page(): #
             key="coord_template_uploader_sidebar" #
         )
 
-        st.subheader("- Gerar Proposta -") #
-        if st.button("Gerar Documento", use_container_width=True, type="primary", key="coord_gerar_proposta_btn_sidebar"): #
-            if uploaded_template_coord is None: #
-                st.error("❌ Por favor, selecione um arquivo de modelo (.docx) na barra lateral.") #
-            else:
-                with st.spinner(f"Gerando proposta de Coordenação ({st.session_state.coord_offer_type})... Por favor, aguarde."): #
-                    try:
-                        current_inputs = {} #
-                        current_fields_config_sidebar = coordenacao_logic.COORD_FIELD_CONFIGS.get(st.session_state.coord_offer_type, []) #
-                        for _, key, _ in current_fields_config_sidebar: #
-                            current_inputs[key] = st.session_state.coord_form_inputs.get(key) #
+        st.subheader("- Gerar Proposta -")
+        if st.button("Gerar Documento", use_container_width=True, type="primary", key="coord_gerar_proposta_btn_sidebar"):
+            # Resetar estados anteriores
+            st.session_state.coord_process_complete = False
+            st.session_state.coord_generated_doc_io = None
+            st.session_state.coord_output_filename_docx = None
+            st.session_state.coord_error_message = None
 
-                        # Chamando a função de coordenacao_logic
-                        data_to_replace, errors = coordenacao_logic.prepare_coordenacao_data( #
-                            current_inputs, #
-                            st.session_state.coord_offer_type #
+            if uploaded_template_coord is None:
+                st.error("❌ Por favor, selecione um arquivo de modelo (.docx) na barra lateral.")
+                st.session_state.coord_process_complete = True # Marca que a tentativa terminou
+            else:
+                with st.spinner(f"Gerando proposta de Coordenação ({st.session_state.coord_offer_type})... Por favor, aguarde."):
+                    try:
+                        current_inputs = {}
+                        current_fields_config_sidebar = configs.COORD_FIELD_CONFIGS.get(st.session_state.coord_offer_type, [])
+                        for _, key, _ in current_fields_config_sidebar:
+                            current_inputs[key] = st.session_state.coord_form_inputs.get(key)
+
+                        data_to_replace, errors = coordenacao_logic.prepare_coordenacao_data(
+                            current_inputs,
+                            st.session_state.coord_offer_type
                         )
 
-                        if errors: #
-                            for error_msg in errors: #
-                                st.error(f"⚠️ Erro de Entrada (Coordenação): {error_msg}") #
-                        else:
-                            template_file_bytes = BytesIO(uploaded_template_coord.getvalue()) #
-                            placeholders_to_bold = { #
-                                "[[Devedora]]", "[[Valor_Total]]", "[[Tipo_Oferta_Ext]]", "[[Terra]]" #
-                            }
-                            # Chamando a função de document_generator
-                            generated_doc_io = document_generator.generate_coordenacao_document( #
-                                template_file_bytes, #
-                                data_to_replace, #
-                                placeholders_to_bold, #
-                            )
+                        if errors:
+                            for error_msg in errors:
+                                st.error(f"⚠️ Erro de Entrada (Coordenação): {error_msg}")
+                            st.session_state.coord_process_complete = True
+                            return # Sai da lógica do botão
 
-                            emissora_nome = current_inputs.get("coord_emissora", "Proposta") #
-                            base_filename = f"Proposta_Coord_{st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}" #
-                            output_filename_docx = f"{base_filename}.docx" #
+                        template_file_bytes = BytesIO(uploaded_template_coord.getvalue())
+                        
+                        generated_doc_io = document_generator.generate_coordenacao_document(
+                            template_file_bytes,
+                            data_to_replace,
+                            configs.COORD_PLACEHOLDERS_TO_BOLD,
+                        )
+                        st.session_state.coord_generated_doc_io = generated_doc_io
 
-                            st.success(f"✅ Proposta de Coordenação '{output_filename_docx}' gerada!") #
-                            st.download_button( #
-                                label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type}) (.docx)", #
-                                data=generated_doc_io, #
-                                file_name=output_filename_docx, #
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", #
-                                use_container_width=True, #
-                                key="coord_download_btn_sidebar_docx" #
-                            )
+                        emissora_nome = current_inputs.get("coord_emissora", "Proposta")
+                        base_filename = f"Proposta_Coord_{st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}"
+                        st.session_state.coord_output_filename_docx = f"{base_filename}.docx"
 
-                            st.info("⚙️ Tentando converter para PDF...") #
-                                
-                    except Exception as e: #
-                        st.error(f"❌ Ocorreu um erro crítico ao gerar a proposta de Coordenação: {e}") #
-                        st.error(f"Detalhes do erro: {traceback.format_exc()}") #
+                    except Exception as e:
+                        st.session_state.coord_error_message = f"❌ Ocorreu um erro crítico ao gerar a proposta de Coordenação: {e}\nDetalhes: {traceback.format_exc()}"
+                    finally:
+                        st.session_state.coord_process_complete = True # Marca que o processo terminou
+
+        # --- Exibição dos resultados e botões de download ---
+        if st.session_state.coord_process_complete:
+            if st.session_state.coord_error_message:
+                st.error(st.session_state.coord_error_message)
+
+            if st.session_state.coord_generated_doc_io:
+                st.success(f"✅ Proposta de Coordenação '{st.session_state.coord_output_filename_docx}' gerada!")
+                st.download_button(
+                    label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type}) (.docx)",
+                    data=st.session_state.coord_generated_doc_io,
+                    file_name=st.session_state.coord_output_filename_docx,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="coord_download_btn_sidebar_docx_final" # Chave única para evitar conflitos
+                )
 
     st.subheader("Gerador de Propostas de Coordenação") #
 
@@ -89,8 +108,7 @@ def render_coordenacao_page(): #
     def on_coord_offer_type_change(): #
         new_offer_type = st.session_state.coord_offer_type_selector_main #
         st.session_state.coord_offer_type = new_offer_type #
-        # Usando coordenacao_logic.COORD_FIELD_CONFIGS
-        current_config = coordenacao_logic.COORD_FIELD_CONFIGS.get(new_offer_type, []) #
+        current_config = configs.COORD_FIELD_CONFIGS.get(new_offer_type, []) #
         for label_text, key_name, default_val in current_config: #
             if key_name not in st.session_state.coord_form_inputs or st.session_state.coord_form_inputs.get(f"{key_name}_offer_type") != new_offer_type : #
                  st.session_state.coord_form_inputs[key_name] = default_val #
@@ -110,7 +128,7 @@ def render_coordenacao_page(): #
 
     st.subheader(f"Dados para Proposta de Coordenação: {st.session_state.coord_offer_type}") #
 
-    current_fields_config_main = coordenacao_logic.COORD_FIELD_CONFIGS.get(st.session_state.coord_offer_type, []) #
+    current_fields_config_main = configs.COORD_FIELD_CONFIGS.get(st.session_state.coord_offer_type, []) #
 
     col1, col2 = st.columns(2) #
 
