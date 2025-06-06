@@ -6,7 +6,7 @@ import traceback #
 
 # Importações dos módulos refatorados
 from core import coordenacao_logic # Alterado de common_processing_utils
-from document_processing import document_generator, pdf_converter
+from document_processing import document_generator
 
 def render_coordenacao_page(): #
     if 'coord_form_inputs' not in st.session_state: #
@@ -77,21 +77,6 @@ def render_coordenacao_page(): #
                             )
 
                             st.info("⚙️ Tentando converter para PDF...") #
-                            # Usando o pdf_converter refatorado
-                            pdf_bytes_io, output_filename_pdf, pdf_error = pdf_converter.convert_docx_to_pdf(generated_doc_io, base_filename) #
-
-                            if pdf_bytes_io and output_filename_pdf: #
-                                st.success(f"✅ Proposta de Coordenação '{output_filename_pdf}' convertida para PDF!") #
-                                st.download_button( #
-                                    label=f"⬇️ Baixar Proposta ({st.session_state.coord_offer_type}) (.pdf)", #
-                                    data=pdf_bytes_io, #
-                                    file_name=output_filename_pdf, #
-                                    mime="application/pdf", #
-                                    use_container_width=True, #
-                                    key="coord_download_btn_sidebar_pdf" #
-                                )
-                            else:
-                                st.error(f"❌ {pdf_error}") #
                                 
                     except Exception as e: #
                         st.error(f"❌ Ocorreu um erro crítico ao gerar a proposta de Coordenação: {e}") #

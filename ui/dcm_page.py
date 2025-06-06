@@ -5,25 +5,19 @@ import traceback
 
 from external_apis import cnpj_api
 from core import dcm_logic
-from document_processing import document_generator, pdf_converter
+from document_processing import document_generator
 from shared_utils import formatting_utils
 
 def render_dcm_page():
     # --- Inicialização do Session State para os artefatos gerados ---
     if "dcm_generated_doc_io" not in st.session_state:
         st.session_state.dcm_generated_doc_io = None
-    if "dcm_pdf_bytes_io" not in st.session_state:
-        st.session_state.dcm_pdf_bytes_io = None
     if "dcm_output_filename_docx" not in st.session_state:
         st.session_state.dcm_output_filename_docx = None
-    if "dcm_output_filename_pdf" not in st.session_state:
-        st.session_state.dcm_output_filename_pdf = None
     if "dcm_process_complete" not in st.session_state: # Flag para controlar exibição
         st.session_state.dcm_process_complete = False
     if "dcm_error_message" not in st.session_state:
         st.session_state.dcm_error_message = None
-    if "dcm_pdf_conversion_error_message" not in st.session_state:
-        st.session_state.dcm_pdf_conversion_error_message = None
 
     def update_offer_related_fields_dcm(): #
         selected_key = st.session_state.dcm_tipo_oferta_selector #
@@ -130,15 +124,6 @@ def render_dcm_page():
                         base_filename = f"Proposta_DCM - {inputs['tipo_oferta'].replace(' ','_')} {inputs['devedora'].replace(' ','_')}" #
                         st.session_state.dcm_output_filename_docx = f"{base_filename}.docx" #
 
-                        # Tenta conversão para PDF
-                        pdf_bytes_io, output_filename_pdf, pdf_error = pdf_converter.convert_docx_to_pdf(
-                            st.session_state.dcm_generated_doc_io, # Usa o docx do session_state
-                            base_filename
-                        )
-                        st.session_state.dcm_pdf_bytes_io = pdf_bytes_io # Guarda no session_state
-                        st.session_state.dcm_output_filename_pdf = output_filename_pdf #
-                        st.session_state.dcm_pdf_conversion_error_message = pdf_error #
-
                     except Exception as e: #
                         st.session_state.dcm_error_message = f"❌ Ocorreu um erro crítico ao gerar a proposta DCM: {e}\nDetalhes: {traceback.format_exc()}" #
                     finally:
@@ -160,19 +145,6 @@ def render_dcm_page():
                     use_container_width=True,
                     key="dcm_download_btn_docx_final" # Chave única
                 )
-                # Exibe informações de PDF somente se DOCX foi gerado
-                if st.session_state.dcm_pdf_bytes_io:
-                    st.success(f"✅ Proposta DCM '{st.session_state.dcm_output_filename_pdf}' convertida para PDF!") #
-                    st.download_button( #
-                        label="⬇️ Baixar Proposta DCM Gerada (.pdf)",
-                        data=st.session_state.dcm_pdf_bytes_io,
-                        file_name=st.session_state.dcm_output_filename_pdf,
-                        mime="application/pdf", #
-                        use_container_width=True,
-                        key="dcm_download_btn_pdf_final" # Chave única
-                    )
-                elif st.session_state.dcm_pdf_conversion_error_message: # Se houve erro na conversão do PDF
-                    st.error(f"❌ {st.session_state.dcm_pdf_conversion_error_message}")
 
     # --- Restante da UI da página (abas, inputs, etc.) ---
     dcm_tab_operacao, dcm_tab_devedora = st.tabs(["Detalhes da Operação", "Informações da Devedora"]) #
