@@ -21,7 +21,7 @@ DCM_OFFER_TYPES_DETAILS = {
         "gender": "m",
         "fields": ["lastro", "remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias"]
     },
-    "Debênture": {
+    "Debêntures": {
         "extenso": "Debêntures",
         "gender": "f",
         "fields": ["remuneracao_titulo", "amortizacao_principal", "pagamento_juros", "destinacao", "garantias", "uso_recursos_debenture"]

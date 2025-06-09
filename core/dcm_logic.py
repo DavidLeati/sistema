@@ -127,12 +127,15 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
         "[[Garantias]]": inputs["garantias"], #
         "[[Covenants]]": inputs.get("covenants", ""), # Atualizado para usar .get() para Covenants
         "[[CNPJ_Emissora]]": inputs["cnpj_emissora"], #
-        "[[Copia_Nome]]": inputs.get("copia_nome", ""), "[[Copia_Email]]": inputs.get("copia_email", ""), #
+        "[[Copia_Nome]]": inputs.get("copia_nome", ""),
         "[[Artigo_Tipo_Oferta]]": artigo_definido_tipo_oferta, #
         "[[Artigo_Tipo_Oferta_Cap]]": artigo_definido_tipo_oferta_cap, #
         "[[Contracao_De_Tipo_Oferta]]": contracao_de_tipo_oferta,
         "[[Lastro]]": inputs.get("lastro", ""),
         "[[Uso_Recursos_Debenture]]": inputs.get("uso_recursos_debenture", ""),
+
+        "manter_outro_instrumento": inputs.get("manter_outro_instrumento", False)
+
     }
 
     return data_to_replace, configs.DCM_PLACEHOLDERS_TO_BOLD, validation_info #

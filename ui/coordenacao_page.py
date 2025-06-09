@@ -77,7 +77,7 @@ def render_coordenacao_page():
                         st.session_state.coord_generated_doc_io = generated_doc_io
 
                         emissora_nome = current_inputs.get("coord_emissora", "Proposta")
-                        base_filename = f"Proposta_Coord_{st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}"
+                        base_filename = f"Proposta Coordenador Líder - {st.session_state.coord_offer_type}_{emissora_nome.replace(' ','_')}"
                         st.session_state.coord_output_filename_docx = f"{base_filename}.docx"
 
                     except Exception as e:
@@ -103,7 +103,7 @@ def render_coordenacao_page():
 
     st.subheader("Gerador de Propostas de Coordenação") #
 
-    coord_offer_options = list(coordenacao_logic.COORD_FIELD_CONFIGS.keys()) #
+    coord_offer_options = list(configs.COORD_FIELD_CONFIGS.keys()) #
 
     def on_coord_offer_type_change(): #
         new_offer_type = st.session_state.coord_offer_type_selector_main #

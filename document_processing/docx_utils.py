@@ -3,7 +3,6 @@ import re
 from docx.shared import Pt, RGBColor
 from docx.text.paragraph import Paragraph as DocxParagraphObject
 from docx.oxml.text.paragraph import CT_P
-# from docx.oxml.table import CT_Tbl # Não usado diretamente aqui
 
 def find_next_placeholder_details(text_to_search: str, placeholders_map: dict, search_start_index: int = 0): #
     first_placeholder_found = None #
@@ -167,48 +166,7 @@ def process_comissao_performance(doc, comissao_existe: bool): #
             new_run.font.color.rgb = RGBColor(0x00, 0x00, 0x00) #
             new_run.font.bold = None #
             new_run.font.italic = None #
-
-    all_paragraphs_after_changes = doc.paragraphs #
-    for para_obj in all_paragraphs_after_changes: #
-        current_para_text = para_obj.text #
-        renumber_match = re.match(r"^(\s*6\.)(\d+)([\s\.\t])", current_para_text) #
         
-        if renumber_match: #
-            captured_prefix_before_num = renumber_match.group(1) #
-            captured_original_num_str = renumber_match.group(2) #
-            captured_separator_after_num = renumber_match.group(3) #
-            text_after_full_prefix = current_para_text[renumber_match.end(0):] #
-
-            try:
-                original_num_int = int(captured_original_num_str) #
-                if 3 <= original_num_int <= 10: #
-                    new_num_int = original_num_int - 1 #
-                    new_full_prefix = captured_prefix_before_num + str(new_num_int) + captured_separator_after_num #
-                    new_paragraph_text = new_full_prefix + text_after_full_prefix #
-
-                    original_font_name = 'Calibri' #
-                    original_font_size = Pt(11) #
-                    original_font_color_rgb = RGBColor(0,0,0) #
-                    original_bold = None #
-                    
-                    if para_obj.runs: #
-                        first_run = para_obj.runs[0] #
-                        original_font_name = first_run.font.name if first_run.font.name else 'Calibri' #
-                        original_font_size = first_run.font.size if first_run.font.size else Pt(11) #
-                        original_bold = first_run.font.bold #
-                        if first_run.font.color and first_run.font.color.rgb: #
-                            original_font_color_rgb = first_run.font.color.rgb #
-
-                    for run_idx in range(len(para_obj.runs) - 1, -1, -1): #
-                        para_obj._p.remove(para_obj.runs[run_idx]._r) #
-                    
-                    new_run = para_obj.add_run(new_paragraph_text) #
-                    new_run.font.name = original_font_name #
-                    new_run.font.size = original_font_size #
-                    new_run.font.color.rgb = original_font_color_rgb #
-                    new_run.font.bold = original_bold #
-            except ValueError: #
-                continue #
     return doc #
 
 
@@ -252,3 +210,136 @@ def adjust_anexo_layout(doc): #
                 continue #
             para_obj.paragraph_format.page_break_before = True #
     return doc #
+
+def rescan_and_renumber_document(doc):
+    """
+    Verifica todo o documento e reordena os itens de listas numéricas
+    (ex: 1., 1.1., 1.2., 2.) que possam estar fora de sequência.
+
+    Esta função deve ser chamada APÓS qualquer operação que remova
+    parágrafos numerados do documento.
+    """
+    # Regex para identificar um item de lista numérica como "1.2.3. texto"
+    # Captura o prefixo numérico completo (ex: "1.2.3")
+    numeric_item_pattern = re.compile(r"^\s*(\d+(?:\.\d+)*)[\.\s\t]")
+    
+    # Dicionário para armazenar os contadores de cada nível.
+    # Ex: counters[0] para o nível 1., counters[1] para o nível 1.1., etc.
+    counters = {}
+    
+    for para in doc.paragraphs:
+        match = numeric_item_pattern.match(para.text)
+        if not match:
+            # O parágrafo não é um item de lista numérica, continua
+            continue
+
+        # Extrai o número atual e determina o nível (0 para "1", 1 para "1.1")
+        current_number_str = match.group(1)
+        level = current_number_str.count('.')
+        
+        # --- Lógica de Contagem ---
+        # Zera os contadores de níveis mais profundos que o atual
+        # Ex: ao passar do item 2.3 para o 3., o contador do nível de 3.1 é zerado.
+        for i in range(level + 1, len(counters)):
+            counters[i] = 0
+            
+        # Incrementa o contador do nível atual
+        counters[level] = counters.get(level, 0) + 1
+        
+        # --- Lógica de Correção ---
+        # Monta a string do número esperado com base nos contadores
+        # Ex: para nível 1 e contador 3, espera-se "2.3"
+        expected_number_parts = [str(counters.get(i, 1)) for i in range(level + 1)]
+        expected_number_str = ".".join(expected_number_parts)
+
+        # Se o número encontrado for diferente do esperado, corrige o parágrafo
+        if current_number_str != expected_number_str:
+            # Preserva a formatação original do parágrafo
+            original_runs = para.runs
+            if not original_runs: continue
+
+            original_font = original_runs[0].font
+            
+            # Substitui apenas a parte numérica do texto
+            new_text = para.text.replace(current_number_str, expected_number_str, 1)
+            
+            # Limpa o parágrafo antigo
+            for run in para.runs:
+                para._p.remove(run._r)
+            
+            # Adiciona o novo texto com a formatação original
+            new_run = para.add_run(new_text)
+            new_run.font.name = original_font.name
+            new_run.font.size = original_font.size
+            new_run.font.bold = original_font.bold
+            new_run.font.italic = original_font.italic
+            if original_font.color and original_font.color.rgb:
+                new_run.font.color.rgb = original_font.color.rgb
+                
+    return doc
+
+def delete_empty_table_rows(doc):
+    """
+    Percorre todas as tabelas do documento e remove as linhas em que a primeira
+    ou a segunda coluna estejam vazias (sem texto).
+    """
+    # Itera sobre cada tabela no documento
+    for table in doc.tables:
+        # Cria uma lista para marcar as linhas que devem ser removidas.
+        # É uma prática mais segura do que remover durante a iteração.
+        rows_to_delete = []
+        
+        for row in table.rows:
+            # Garante que a linha tenha pelo menos 2 células para evitar erros
+            if len(row.cells) < 2:
+                continue
+
+            # Pega o texto da primeira e da segunda célula, removendo espaços em branco
+            cell_1_text = row.cells[0].text.strip()
+            cell_2_text = row.cells[1].text.strip()
+            
+            # Se qualquer uma das duas células estiver vazia, marca a linha para exclusão
+            if not cell_1_text or not cell_2_text:
+                rows_to_delete.append(row)
+
+        # Após identificar todas as linhas, remove cada uma delas da tabela
+        for row_to_delete in rows_to_delete:
+            # Acessa o elemento XML da linha (_tr) e o remove do seu elemento pai (a tabela, _tbl)
+            table._tbl.remove(row_to_delete._tr)
+            
+    return doc
+
+def process_paragraph_by_marker(doc, marker, keep_paragraph=True):
+    """
+    Encontra um parágrafo por um marcador de texto único.
+
+    - Se keep_paragraph for True, mantém o parágrafo mas remove o marcador.
+    - Se keep_paragraph for False, remove o parágrafo inteiro.
+    """
+    paragraph_to_process = None
+    
+    # Encontra o parágrafo que contém o marcador
+    for p in doc.paragraphs:
+        if marker in p.text:
+            paragraph_to_process = p
+            break
+            
+    if paragraph_to_process is None:
+        return doc # Marcador não encontrado, não faz nada
+
+    if keep_paragraph:
+        # Lógica para remover apenas o marcador, mantendo a formatação
+        for run in paragraph_to_process.runs:
+            if marker in run.text:
+                run.text = run.text.replace(marker, "")
+                # Se o marcador estiver espalhado por vários 'runs',
+                # esta lógica precisaria ser mais complexa, mas para
+                # marcadores no início, isso geralmente funciona.
+    else:
+        # Lógica para remover o parágrafo inteiro
+        p_element = paragraph_to_process._element
+        # Acessa o elemento "pai" e remove o parágrafo
+        if p_element.getparent() is not None:
+            p_element.getparent().remove(p_element)
+            
+    return doc

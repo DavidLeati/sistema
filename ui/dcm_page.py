@@ -10,6 +10,14 @@ from shared_utils import formatting_utils
 from config import configs
 
 def render_dcm_page():
+    def sync_comissao_performance_checkbox():
+        """
+        Esta função é chamada AUTOMATICAMENTE quando o checkbox muda de estado.
+        Ela sincroniza o estado do widget (armazenado pela sua 'key')
+        com a nossa variável no dicionário do formulário.
+        """
+        st.session_state.dcm_form_inputs["comissao_performance_existe"] = st.session_state.dcm_comissao_performance_chk
+ 
     # --- Inicialização do Session State para os artefatos gerados ---
     if "dcm_generated_doc_io" not in st.session_state:
         st.session_state.dcm_generated_doc_io = None
@@ -65,22 +73,33 @@ def render_dcm_page():
         st.subheader("- Selecione o Modelo -") #
         uploaded_template_dcm = st.file_uploader("Escolha o arquivo de modelo (.docx)", type="docx", label_visibility="collapsed", key="dcm_template_uploader") #
 
-        st.checkbox( #
-            "Mostrar/Esconder Dados da Proposta", #
-            key=checkbox_visibility_key #
+        st.subheader("- Preencha os Dados -")
+
+        # 1. Checkbox agora está aqui, controlando apenas a seção abaixo dele.
+        st.checkbox(
+            "Adicionar Securitizadora?",
+            key=checkbox_visibility_key
         )
 
-        if st.session_state[checkbox_visibility_key]: #
-            st.subheader("- Preencha os Dados -") #
-            with st.expander("Dados da Emissora e Signatário", expanded=False): #
-                st.session_state.dcm_form_inputs["emissora"] = st.text_input("Emissora:", value=st.session_state.dcm_form_inputs["emissora"], key="dcm_emissora") #
-                st.session_state.dcm_form_inputs["cnpj_emissora"] = st.text_input("CNPJ Emissora:", value=st.session_state.dcm_form_inputs["cnpj_emissora"], key="dcm_cnpj_emissora") #
-                st.session_state.dcm_form_inputs["signatario_nome"] = st.text_input("Nome do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_nome"], key="dcm_signatario_nome") #
-                st.session_state.dcm_form_inputs["signatario_email"] = st.text_input("E-mail do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_email"], key="dcm_signatario_email") #
+        # 2. A visibilidade deste expander e a limpeza dos seus dados
+        #    são controladas pelo checkbox.
+        if st.session_state[checkbox_visibility_key]:
+            with st.expander("Informações da Securitizadora", expanded=False):
+                st.session_state.dcm_form_inputs["emissora"] = st.text_input("Emissora:", value=st.session_state.dcm_form_inputs["emissora"], key="dcm_emissora")
+                st.session_state.dcm_form_inputs["cnpj_emissora"] = st.text_input("CNPJ Emissora:", value=st.session_state.dcm_form_inputs["cnpj_emissora"], key="dcm_cnpj_emissora")
+                st.session_state.dcm_form_inputs["signatario_nome"] = st.text_input("Nome do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_nome"], key="dcm_signatario_nome")
+                st.session_state.dcm_form_inputs["signatario_email"] = st.text_input("E-mail do Signatário (Emissora):", value=st.session_state.dcm_form_inputs["signatario_email"], key="dcm_signatario_email")
+        else:
+            # Limpa os dados apenas da securitizadora se o checkbox for desmarcado.
+            st.session_state.dcm_form_inputs["emissora"] = ""
+            st.session_state.dcm_form_inputs["cnpj_emissora"] = ""
+            st.session_state.dcm_form_inputs["signatario_nome"] = ""
+            st.session_state.dcm_form_inputs["signatario_email"] = ""
 
-            with st.expander("Pessoas em Cópia", expanded=False): #
-                st.session_state.dcm_form_inputs["copia_nome"] = st.text_input("Nome (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_nome"], key="dcm_copia_nome") #
-                st.session_state.dcm_form_inputs["copia_email"] = st.text_input("E-mail (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_email"], key="dcm_copia_email") #
+        # 3. Este expander agora está sempre visível, independentemente do checkbox.
+        with st.expander("Pessoas em Cópia", expanded=False):
+            st.session_state.dcm_form_inputs["copia_nome"] = st.text_input("Nome (Em Cópia):", value=st.session_state.dcm_form_inputs["copia_nome"], key="dcm_copia_nome")
+
 
         st.subheader("- Gerar Proposta -") #
         if st.button("Gerar Documento", use_container_width=True, type="primary", key="dcm_gerar_proposta_btn"): #
@@ -202,14 +221,23 @@ def render_dcm_page():
             st.session_state.dcm_form_inputs["remuneracao_str"] = st.text_input( #
                 "Remuneração da Estruturação (%):", value=st.session_state.dcm_form_inputs["remuneracao_str"], key="dcm_remuneracao_str" #
             )
-        performance_options_map_dcm = {"Sim": True, "Não": False} #
-        performance_labels_dcm = list(performance_options_map_dcm.keys()) #
-        default_index_performance_dcm = 0 if st.session_state.dcm_form_inputs.get("comissao_performance_existe", True) else 1 #
-        selected_performance_label_dcm = st.selectbox( #
-            "Haverá Comissão de Performance (impacta item 6.2 da proposta DCM)?", #
-            options=performance_labels_dcm, index=default_index_performance_dcm, key="dcm_comissao_performance_selector" #
+
+        if "dcm_comissao_performance_chk" not in st.session_state:
+            st.session_state.dcm_comissao_performance_chk = st.session_state.dcm_form_inputs.get("comissao_performance_existe", True)
+
+        # Agora, o checkbox não atribui valor diretamente. Ele chama a função on_change.
+        st.checkbox(
+            "Incluir Comissão de Performance?",
+            key="dcm_comissao_performance_chk",
+            on_change=sync_comissao_performance_checkbox
         )
-        st.session_state.dcm_form_inputs["comissao_performance_existe"] = performance_options_map_dcm[selected_performance_label_dcm] #
+
+        st.session_state.dcm_form_inputs["manter_outro_instrumento"] = st.checkbox(
+            "Incluir Opção de Outro Instrumento?",
+            value=False,  # Por padrão, a cláusula não será incluída
+            key="dcm_outro_instrumento_chk"
+        )
+        
         st.markdown("---") #
         st.write(f"**Detalhes Específicos para {st.session_state.dcm_form_inputs['tipo_oferta']} (DCM):**") #
         current_selected_offer_for_fields_dcm = st.session_state.dcm_form_inputs["tipo_oferta"] #
