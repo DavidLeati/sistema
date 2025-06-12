@@ -282,18 +282,23 @@ def delete_empty_table_rows(doc):
     """
     Percorre todas as tabelas do documento e remove as linhas em que a primeira
     ou a segunda coluna estejam vazias (sem texto).
+    Aplica a lógica apenas em tabelas com 2 ou mais colunas.
     """
     # Itera sobre cada tabela no documento
     for table in doc.tables:
+        # Pula para a próxima tabela se ela não tiver linhas ou se tiver menos de 2 colunas.
+        # Isso previne erros e impede que a lógica afete tabelas de 1 coluna.
+        if not table.rows or len(table.columns) < 2:
+            continue
+        if len(table.columns) == 3:
+            continue
+
         # Cria uma lista para marcar as linhas que devem ser removidas.
-        # É uma prática mais segura do que remover durante a iteração.
         rows_to_delete = []
         
         for row in table.rows:
-            # Garante que a linha tenha pelo menos 2 células para evitar erros
-            if len(row.cells) < 2:
-                continue
-
+            # O `if len(row.cells) < 2:` anterior foi removido pois a verificação agora é feita na tabela.
+            
             # Pega o texto da primeira e da segunda célula, removendo espaços em branco
             cell_1_text = row.cells[0].text.strip()
             cell_2_text = row.cells[1].text.strip()
@@ -304,7 +309,6 @@ def delete_empty_table_rows(doc):
 
         # Após identificar todas as linhas, remove cada uma delas da tabela
         for row_to_delete in rows_to_delete:
-            # Acessa o elemento XML da linha (_tr) e o remove do seu elemento pai (a tabela, _tbl)
             table._tbl.remove(row_to_delete._tr)
             
     return doc

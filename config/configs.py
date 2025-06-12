@@ -108,5 +108,5 @@ COORD_FIELD_CONFIGS = {
 }
 
 COORD_PLACEHOLDERS_TO_BOLD = {
-    "[[Devedora]]", "Emissora", "[[Tipo_Oferta_Ext]]", "[[Terra]]"
+    "[[Devedora]]", "[[Emissora]]", "[[Tipo_Oferta_Ext]]", "[[Terra]]"
 }
