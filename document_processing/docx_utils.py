@@ -214,68 +214,53 @@ def adjust_anexo_layout(doc): #
 def rescan_and_renumber_document(doc):
     """
     Verifica todo o documento e reordena os itens de listas numéricas
-    (ex: 1., 1.1., 1.2., 2.) que possam estar fora de sequência.
-
-    Esta função deve ser chamada APÓS qualquer operação que remova
-    parágrafos numerados do documento.
+    que possam estar fora de sequência. Garante a fonte Calibri 11pt.
     """
-    # Regex para identificar um item de lista numérica como "1.2.3. texto"
-    # Captura o prefixo numérico completo (ex: "1.2.3")
     numeric_item_pattern = re.compile(r"^\s*(\d+(?:\.\d+)*)[\.\s\t]")
-    
-    # Dicionário para armazenar os contadores de cada nível.
-    # Ex: counters[0] para o nível 1., counters[1] para o nível 1.1., etc.
     counters = {}
     
     for para in doc.paragraphs:
-        match = numeric_item_pattern.match(para.text)
+        # Usaremos o texto do primeiro "run" para a verificação, é mais seguro.
+        if not para.runs:
+            continue
+        
+        # Concatena o texto dos runs para ter o texto completo do parágrafo
+        para_text = para.text
+        match = numeric_item_pattern.match(para_text)
+
         if not match:
-            # O parágrafo não é um item de lista numérica, continua
             continue
 
-        # Extrai o número atual e determina o nível (0 para "1", 1 para "1.1")
         current_number_str = match.group(1)
         level = current_number_str.count('.')
         
-        # --- Lógica de Contagem ---
-        # Zera os contadores de níveis mais profundos que o atual
-        # Ex: ao passar do item 2.3 para o 3., o contador do nível de 3.1 é zerado.
         for i in range(level + 1, len(counters)):
             counters[i] = 0
             
-        # Incrementa o contador do nível atual
         counters[level] = counters.get(level, 0) + 1
         
-        # --- Lógica de Correção ---
-        # Monta a string do número esperado com base nos contadores
-        # Ex: para nível 1 e contador 3, espera-se "2.3"
         expected_number_parts = [str(counters.get(i, 1)) for i in range(level + 1)]
         expected_number_str = ".".join(expected_number_parts)
 
-        # Se o número encontrado for diferente do esperado, corrige o parágrafo
         if current_number_str != expected_number_str:
-            # Preserva a formatação original do parágrafo
-            original_runs = para.runs
-            if not original_runs: continue
-
-            original_font = original_runs[0].font
+            # Pega o estilo do primeiro run como base
+            original_run = para.runs[0]
+            is_bold = original_run.bold
             
-            # Substitui apenas a parte numérica do texto
-            new_text = para.text.replace(current_number_str, expected_number_str, 1)
+            # Recria o texto do parágrafo com o número correto
+            new_text = para_text.replace(current_number_str, expected_number_str, 1)
             
-            # Limpa o parágrafo antigo
+            # Limpa os runs antigos do parágrafo
             for run in para.runs:
                 para._p.remove(run._r)
             
-            # Adiciona o novo texto com a formatação original
+            # Adiciona um novo run com o texto corrigido e a formatação desejada
             new_run = para.add_run(new_text)
-            new_run.font.name = original_font.name
-            new_run.font.size = original_font.size
-            new_run.font.bold = original_font.bold
-            new_run.font.italic = original_font.italic
-            if original_font.color and original_font.color.rgb:
-                new_run.font.color.rgb = original_font.color.rgb
-                
+            new_run.font.name = 'Calibri'  # <-- FORÇA A FONTE CORRETA
+            new_run.font.size = Pt(11)     # <-- FORÇA O TAMANHO CORRETO
+            new_run.bold = is_bold         # <-- Mantém o negrito original
+            new_run.font.color.rgb = RGBColor(0, 0, 0)
+            
     return doc
 
 def delete_empty_table_rows(doc):

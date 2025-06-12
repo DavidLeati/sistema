@@ -28,14 +28,31 @@ def render_dcm_page():
     if "dcm_error_message" not in st.session_state:
         st.session_state.dcm_error_message = None
 
-    def update_offer_related_fields_dcm(): #
-        selected_key = st.session_state.dcm_tipo_oferta_selector #
-        if selected_key in configs.DCM_OFFER_TYPES_DETAILS: #
-            st.session_state.dcm_form_inputs["tipo_oferta"] = selected_key #
-            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = configs.DCM_OFFER_TYPES_DETAILS[selected_key]["extenso"] #
+    def update_offer_related_fields_dcm():
+    # Pega a nova seleção
+        selected_key = st.session_state.dcm_tipo_oferta_selector
+        
+        if selected_key in configs.DCM_OFFER_TYPES_DETAILS:
+            # Atualiza os valores básicos do tipo de oferta
+            st.session_state.dcm_form_inputs["tipo_oferta"] = selected_key
+            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = configs.DCM_OFFER_TYPES_DETAILS[selected_key]["extenso"]
+
+            # --- LÓGICA DE LIMPEZA ADICIONADA ---
+            # Lista de todos os campos que podem ser opcionais
+            all_optional_fields = ["lastro", "uso_recursos_debenture", "covenants"]
+            
+            # Pega a lista de campos que são relevantes para a nova seleção
+            relevant_fields = configs.DCM_OFFER_TYPES_DETAILS[selected_key].get("fields", [])
+            
+            # Itera sobre todos os campos opcionais e limpa aqueles que NÃO são relevantes
+            for field in all_optional_fields:
+                if field not in relevant_fields:
+                    st.session_state.dcm_form_inputs[field] = ""
+            # --- FIM DA LÓGICA DE LIMPEZA ---
+                    
         else:
-            st.session_state.dcm_form_inputs["tipo_oferta"] = selected_key #
-            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = "Não especificado" #
+            st.session_state.dcm_form_inputs["tipo_oferta"] = ""
+            st.session_state.dcm_form_inputs["tipo_oferta_ext"] = ""
 
     if 'dcm_form_inputs' not in st.session_state: #
         st.session_state.dcm_form_inputs = { #
