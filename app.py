@@ -20,7 +20,6 @@ if 'generator_type' not in st.session_state:
 # Criação da barra de navegação superior
 st.markdown("""
 <style>
-    /* Seu CSS para botões de navegação e abas aqui */
     .stButton>button {
         width: 100%;
         border-radius: 0.5rem;
@@ -33,7 +32,26 @@ st.markdown("""
         border-color: #B0B0B0;
         color: #000000 !important;
     }
-    /* ... (restante do seu CSS) ... */
+    
+    button[data-baseweb="tab"] {
+        font-size: 1rem;
+        border-radius: 0.5rem 0.5rem 0 0;
+        border: 1px solid #CCCCCC;
+        background-color: #F0F2F6;
+        color: #555555;
+        margin-right: 4px; /* Espaçamento entre as abas */
+    }
+    
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #FFFFFF;
+        color: #000000;
+        border-bottom: 1px solid #FFFFFF; /* Esconde a borda inferior da aba ativa */
+    }
+    
+    div[data-baseweb="tab-list"] {
+        border-bottom: 1px solid #CCCCCC;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
