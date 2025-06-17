@@ -134,7 +134,9 @@ def prepare_document_data(inputs: dict) -> tuple[dict, set, dict]:
         "[[Lastro]]": inputs.get("lastro", ""),
         "[[Uso_Recursos_Debenture]]": inputs.get("uso_recursos_debenture", ""),
 
-        "manter_outro_instrumento": inputs.get("manter_outro_instrumento", False)
+        "[[Tipo_Secundario]]": inputs.get("tipo_secundario", ""),
+        "manter_outro_instrumento": inputs.get("manter_outro_instrumento", False),
+
 
     }
 

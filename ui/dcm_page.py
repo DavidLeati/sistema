@@ -73,7 +73,8 @@ def render_dcm_page():
             "gestor_fidc": "Nome do Gestor do FIDC", "administrador_fidc": "Nome do Administrador do FIDC", #
             "custodiante_fidc": "Nome do Custodiante do FIDC", "comissao_performance_existe": True, #
             "signatario_nome": "NOME DO DIRETOR DA SECURITIZADORA", "signatario_email": "diretor@suasecuritizadora.com", #
-        }
+            "manter_outro_instrumento": False, "tipo_secundario": ""
+            }
 
     if "dcm_tipo_oferta_selector" not in st.session_state: #
         st.session_state.dcm_tipo_oferta_selector = st.session_state.dcm_form_inputs["tipo_oferta"] #
@@ -250,10 +251,21 @@ def render_dcm_page():
         )
 
         st.session_state.dcm_form_inputs["manter_outro_instrumento"] = st.checkbox(
-            "Incluir Opção de Outro Instrumento?",
-            value=False,  # Por padrão, a cláusula não será incluída
+            "Adicionar Cláusula de Outro Instrumento?",
             key="dcm_outro_instrumento_chk"
         )
+
+        # Verifica o estado do checkbox que acabamos de definir
+        if st.session_state.dcm_form_inputs["manter_outro_instrumento"]:
+            # Se estiver MARCADO, mostra a área de texto para customização
+            st.session_state.dcm_form_inputs["tipo_secundario"] = st.text_input(
+                "Instrumento Secundário (plural):",
+                value=st.session_state.dcm_form_inputs.get("tipo_secundario", ""),
+                key="dcm_tipo_secundario_text",
+            )
+        else:
+            # Se estiver DESMARCADO, garante que o texto customizado seja limpo
+            st.session_state.dcm_form_inputs["tipo_secundario"] = ""
         
         st.markdown("---") #
         st.write(f"**Detalhes Específicos para {st.session_state.dcm_form_inputs['tipo_oferta']} (DCM):**") #

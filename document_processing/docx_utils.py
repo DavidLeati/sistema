@@ -216,6 +216,7 @@ def rescan_and_renumber_document(doc):
     Verifica todo o documento e reordena os itens de listas numéricas
     que possam estar fora de sequência. Garante a fonte Calibri 11pt.
     """
+    anexo_pattern = re.compile(r"^\s*ANEXO\s+[IVXLCDM]+", re.IGNORECASE)
     numeric_item_pattern = re.compile(r"^\s*(\d+(?:\.\d+)*)[\.\s\t]")
     counters = {}
     
@@ -224,6 +225,9 @@ def rescan_and_renumber_document(doc):
         if not para.runs:
             continue
         
+        if anexo_pattern.match(para.text):
+            break
+
         # Concatena o texto dos runs para ter o texto completo do parágrafo
         para_text = para.text
         match = numeric_item_pattern.match(para_text)
@@ -303,32 +307,55 @@ def process_paragraph_by_marker(doc, marker, keep_paragraph=True):
     Encontra um parágrafo por um marcador de texto único.
 
     - Se keep_paragraph for True, mantém o parágrafo mas remove o marcador.
-    - Se keep_paragraph for False, remove o parágrafo inteiro.
+    - Se keep_paragraph for False, remove o parágrafo inteiro e a linha
+      em branco seguinte, se houver.
     """
-    paragraph_to_process = None
+    paragraphs_to_delete = []
     
-    # Encontra o parágrafo que contém o marcador
-    for p in doc.paragraphs:
+    # Criamos uma lista estática de parágrafos para iterar com segurança
+    all_paragraphs = list(doc.paragraphs)
+    
+    for i, p in enumerate(all_paragraphs):
         if marker in p.text:
-            paragraph_to_process = p
-            break
-            
-    if paragraph_to_process is None:
-        return doc # Marcador não encontrado, não faz nada
+            if keep_paragraph:
+                # Se for para manter, apenas removemos o marcador do texto
+                for run in p.runs:
+                    if marker in run.text:
+                        run.text = run.text.replace(marker, "")
+            else:
+                # Se for para apagar, adicionamos o parágrafo à lista de exclusão
+                paragraphs_to_delete.append(p)
+                
+                # Verifica se o parágrafo seguinte existe e está em branco
+                if (i + 1) < len(all_paragraphs):
+                    next_paragraph = all_paragraphs[i + 1]
+                    # Se o parágrafo seguinte não tiver texto (apenas espaços), ele também é marcado para exclusão.
+                    if not next_paragraph.text.strip():
+                        paragraphs_to_delete.append(next_paragraph)
 
-    if keep_paragraph:
-        # Lógica para remover apenas o marcador, mantendo a formatação
-        for run in paragraph_to_process.runs:
-            if marker in run.text:
-                run.text = run.text.replace(marker, "")
-                # Se o marcador estiver espalhado por vários 'runs',
-                # esta lógica precisaria ser mais complexa, mas para
-                # marcadores no início, isso geralmente funciona.
-    else:
-        # Lógica para remover o parágrafo inteiro
-        p_element = paragraph_to_process._element
-        # Acessa o elemento "pai" e remove o parágrafo
+            # Assume que o marcador é único e para a busca
+            break 
+            
+    # Remove todos os parágrafos marcados para exclusão
+    for p_to_delete in paragraphs_to_delete:
+        p_element = p_to_delete._element
         if p_element.getparent() is not None:
             p_element.getparent().remove(p_element)
             
+    return doc
+
+def apply_keep_with_next_to_headings(doc):
+    """
+    Aplica a formatação "Manter com o próximo" a todos os parágrafos
+    que são identificados como títulos numerados (ex: 1., 1.1., etc.).
+    Isso impede que um título fique isolado no final de uma página.
+    """
+    # Regex para identificar um item de lista numérica (tópicos e subtópicos)
+    # O mesmo padrão usado na função de renumeração.
+    heading_pattern = re.compile(r"^\s*(\d+(?:\.\d+)*)[\.\s\t]")
+
+    for para in doc.paragraphs:
+        if heading_pattern.match(para.text.strip()):
+            para.paragraph_format.keep_with_next = True
+    
     return doc
