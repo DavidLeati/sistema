@@ -15,7 +15,7 @@ st.set_page_config(layout="wide", page_title="Sistema de Propostas")
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Gerador de Propostas"
 if 'generator_type' not in st.session_state:
-    st.session_state.generator_type = "DCM"
+    st.session_state.generator_type = "Coordenação"
 
 # Criação da barra de navegação superior
 st.markdown("""

@@ -2,7 +2,7 @@
 
 # --- CONFIGURAÇÕES GERAIS DE NAVEGAÇÃO (usado em app.py) ---
 PAGES = ["Gerador de Propostas", "Gerador de Recibos"]
-GENERATOR_OPTIONS = ["DCM", "Coordenação"]
+GENERATOR_OPTIONS = ["Coordenação", "DCM"]
 
 # --- CONSTANTES COMPARTILHADAS (usado em core/dcm_logic.py, core/coordenacao_logic.py) ---
 MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
